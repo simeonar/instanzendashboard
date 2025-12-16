@@ -153,7 +153,17 @@ public class WebDashboard {
                 
             } else if ("POST".equals(method)) {
                 // Update configuration
-                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                // Java 8 compatible way to read all bytes
+                java.io.InputStream is = exchange.getRequestBody();
+                java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+                int nRead;
+                byte[] data = new byte[1024];
+                while ((nRead = is.read(data, 0, data.length)) != -1) {
+                    buffer.write(data, 0, nRead);
+                }
+                buffer.flush();
+                String body = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
+                
                 @SuppressWarnings("unchecked")
                 Map<String, String> updates = gson.fromJson(body, Map.class);
                 
