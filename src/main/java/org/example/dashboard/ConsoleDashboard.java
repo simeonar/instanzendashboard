@@ -167,7 +167,7 @@ public class ConsoleDashboard {
         int displayWidth = status.getDisplayName().length() + 2; // icon + space + text
         int padding = width - displayWidth;
         
-        return text + " ".repeat(Math.max(0, padding));
+        return text + repeatString(" ", Math.max(0, padding));
     }
 
     private String formatMetadata(Instance instance) {
@@ -200,7 +200,7 @@ public class ConsoleDashboard {
         
         int padding = 28 - approxWidth;
         if (padding > 0) {
-            result += " ".repeat(padding);
+            result += repeatString(" ", padding);
         }
         
         return result;
@@ -210,6 +210,18 @@ public class ConsoleDashboard {
         if (text == null) return "";
         if (text.length() <= maxLength) return text;
         return text.substring(0, maxLength - 1) + "…";
+    }
+
+    /**
+     * Repeats a string n times (Java 8 compatible alternative to String.repeat)
+     */
+    private String repeatString(String str, int count) {
+        if (count <= 0) return "";
+        StringBuilder sb = new StringBuilder(str.length() * count);
+        for (int i = 0; i < count; i++) {
+            sb.append(str);
+        }
+        return sb.toString();
     }
 
     private void printFooter(long lastUpdateTime) {
