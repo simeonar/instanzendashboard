@@ -51,6 +51,7 @@ public class WebDashboard {
         server.createContext("/api/stats", new StatsHandler());
         server.createContext("/api/config", new ConfigHandler());
         server.createContext("/api/config/apply", new ConfigApplyHandler());
+        server.createContext("/api/scan", new ScanHandler());
         
         // Pages
         server.createContext("/settings", new SettingsPageHandler());
@@ -249,6 +250,87 @@ public class WebDashboard {
                 Map<String, Object> result = new HashMap<>();
                 result.put("success", false);
                 result.put("message", "Failed to apply configuration: " + e.getMessage());
+
+                String json = gson.toJson(result);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(500, response.length);
+
+                OutputStream os = exchange.getResponseBody();
+                os.write(response);
+                os.close();
+            }
+        }
+    }
+
+    /**
+     * Handler for manual scan trigger
+     */
+    private class ScanHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                return;
+            }
+
+            try {
+                if (applicationManager == null) {
+                    throw new RuntimeException("ApplicationManager not initialized");
+                }
+
+                // Check if scan is already running
+                if (applicationManager.isScanning()) {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("success", false);
+                    result.put("message", "Scan is already in progress");
+
+                    String json = gson.toJson(result);
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+
+                    byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(409, response.length);
+
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response);
+                    os.close();
+                    return;
+                }
+
+                // Trigger scan in background thread
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            applicationManager.performScan();
+                        } catch (Exception e) {
+                            logger.error("Error during manual scan", e);
+                        }
+                    }
+                }).start();
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", true);
+                result.put("message", "Scan started successfully");
+
+                String json = gson.toJson(result);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, response.length);
+
+                OutputStream os = exchange.getResponseBody();
+                os.write(response);
+                os.close();
+
+            } catch (Exception e) {
+                logger.error("Failed to start scan", e);
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", false);
+                result.put("message", "Failed to start scan: " + e.getMessage());
 
                 String json = gson.toJson(result);
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -485,6 +567,26 @@ public class WebDashboard {
                 "            padding: 40px;\n" +
                 "            color: #6b7280;\n" +
                 "        }\n" +
+                "        details {\n" +
+                "            margin-top: 10px;\n" +
+                "        }\n" +
+                "        details summary {\n" +
+                "            cursor: pointer;\n" +
+                "            padding: 10px;\n" +
+                "            background: #f9fafb;\n" +
+                "            border-radius: 6px;\n" +
+                "            font-weight: 600;\n" +
+                "            color: #374151;\n" +
+                "            transition: background 0.2s;\n" +
+                "            user-select: none;\n" +
+                "        }\n" +
+                "        details summary:hover {\n" +
+                "            background: #f3f4f6;\n" +
+                "        }\n" +
+                "        details[open] summary {\n" +
+                "            margin-bottom: 10px;\n" +
+                "            background: #e5e7eb;\n" +
+                "        }\n" +
                 "    </style>\n" +
                 "</head>\n" +
                 "<body>\n" +
@@ -494,11 +596,11 @@ public class WebDashboard {
                 "                <h1>🖥️ Instance Dashboard</h1>\n" +
                 "                <div>\n" +
                 "                    <a href='/settings' class=\"settings-btn\">⚙️ Settings</a>\n" +
-                "                    <button class=\"refresh-btn\" onclick=\"manualRefresh()\">🔄 Refresh</button>\n" +
+                "                    <button class=\"refresh-btn\" onclick=\"triggerScan()\" id=\"scanBtn\">🔍 Scan</button>\n" +
                 "                </div>\n" +
                 "            </div>\n" +
-                "            <div class=\"last-update\" id=\"lastUpdate\">Loading...</div>\n" +
-                "            <div class=\"last-update\" id=\"nextScan\" style=\"margin-top: 5px; color: #9ca3af;\">Next scan in: calculating...</div>\n" +
+                "            <div class=\"last-update\" id=\"lastUpdate\">No scans yet</div>\n" +
+                "            <div class=\"last-update\" id=\"scanStatus\" style=\"margin-top: 5px; color: #9ca3af;\"></div>\n" +
                 "        </div>\n" +
                 "\n" +
                 "        <div class=\"stats\" id=\"stats\">\n" +
@@ -583,7 +685,8 @@ public class WebDashboard {
                 "                        \n" +
                 "                        let pathsHtml = '';\n" +
                 "                        if (Object.keys(paths).length > 0) {\n" +
-                "                            pathsHtml = '<table class=\"paths-table\"><thead><tr><th>Path</th><th>Status</th><th>HTTP Code</th><th>Response Time</th><th>Action</th></tr></thead><tbody>';\n" +
+                "                            pathsHtml = '<details><summary>📋 Scan Details (' + Object.keys(paths).length + ' paths)</summary>';\n" +
+                "                            pathsHtml += '<table class=\"paths-table\"><thead><tr><th>Path</th><th>Status</th><th>HTTP Code</th><th>Response Time</th><th>Action</th></tr></thead><tbody>';\n" +
                 "                            for (const [path, result] of Object.entries(paths)) {\n" +
                 "                                const url = 'http://' + instance.ipAddress + ':' + instance.port + path;\n" +
                 "                                pathsHtml += '<tr>';\n" +
@@ -594,7 +697,7 @@ public class WebDashboard {
                 "                                pathsHtml += '<td><button class=\"open-btn\" onclick=\"window.open(\\'' + url + '\\', \\'_blank\\')\">Open</button></td>';\n" +
                 "                                pathsHtml += '</tr>';\n" +
                 "                            }\n" +
-                "                            pathsHtml += '</tbody></table>';\n" +
+                "                            pathsHtml += '</tbody></table></details>';\n" +
                 "                        }\n" +
                 "                        \n" +
                 "                        return `\n" +
@@ -620,24 +723,52 @@ public class WebDashboard {
                 "            fetchInstances();\n" +
                 "        }\n" +
                 "\n" +
-                "        function manualRefresh() {\n" +
-                "            const btn = document.querySelector('.refresh-btn');\n" +
+                "        function triggerScan() {\n" +
+                "            const btn = document.getElementById('scanBtn');\n" +
+                "            const statusEl = document.getElementById('scanStatus');\n" +
+                "            \n" +
                 "            btn.disabled = true;\n" +
                 "            btn.style.opacity = '0.5';\n" +
+                "            statusEl.textContent = 'Scanning...';\n" +
+                "            statusEl.style.color = '#f59e0b';\n" +
                 "            \n" +
-                "            refresh();\n" +
-                "            \n" +
-                "            setTimeout(() => {\n" +
-                "                btn.disabled = false;\n" +
-                "                btn.style.opacity = '1';\n" +
-                "            }, 1000);\n" +
+                "            fetch('/api/scan', { method: 'POST' })\n" +
+                "                .then(response => response.json())\n" +
+                "                .then(result => {\n" +
+                "                    if (result.success) {\n" +
+                "                        statusEl.textContent = 'Scan started successfully';\n" +
+                "                        statusEl.style.color = '#10b981';\n" +
+                "                        \n" +
+                "                        // Poll for updates\n" +
+                "                        const pollInterval = setInterval(() => {\n" +
+                "                            refresh();\n" +
+                "                        }, 2000);\n" +
+                "                        \n" +
+                "                        // Stop polling after 30 seconds\n" +
+                "                        setTimeout(() => {\n" +
+                "                            clearInterval(pollInterval);\n" +
+                "                            btn.disabled = false;\n" +
+                "                            btn.style.opacity = '1';\n" +
+                "                            statusEl.textContent = '';\n" +
+                "                        }, 30000);\n" +
+                "                    } else {\n" +
+                "                        statusEl.textContent = 'Error: ' + result.message;\n" +
+                "                        statusEl.style.color = '#ef4444';\n" +
+                "                        btn.disabled = false;\n" +
+                "                        btn.style.opacity = '1';\n" +
+                "                    }\n" +
+                "                })\n" +
+                "                .catch(err => {\n" +
+                "                    console.error('Error triggering scan:', err);\n" +
+                "                    statusEl.textContent = 'Error: ' + err.message;\n" +
+                "                    statusEl.style.color = '#ef4444';\n" +
+                "                    btn.disabled = false;\n" +
+                "                    btn.style.opacity = '1';\n" +
+                "                });\n" +
                 "        }\n" +
                 "\n" +
                 "        // Initial load\n" +
                 "        refresh();\n" +
-                "\n" +
-                "        // Auto-refresh based on configuration\n" +
-                "        setInterval(refresh, " + (refreshIntervalSeconds * 1000) + ");\n" +
                 "    </script>\n" +
                 "</body>\n" +
                 "</html>";
@@ -740,6 +871,23 @@ public class WebDashboard {
                 "            border-radius: 4px;\n" +
                 "        }\n" +
                 "        .endpoint-item:last-child { margin-bottom: 0; }\n" +
+                "        .endpoint-controls {\n" +
+                "            display: flex;\n" +
+                "            align-items: center;\n" +
+                "            gap: 15px;\n" +
+                "        }\n" +
+                "        .auto-open-checkbox {\n" +
+                "            display: flex;\n" +
+                "            align-items: center;\n" +
+                "            gap: 5px;\n" +
+                "            font-size: 13px;\n" +
+                "            color: #555;\n" +
+                "        }\n" +
+                "        .auto-open-checkbox input[type=\"checkbox\"] {\n" +
+                "            width: 18px;\n" +
+                "            height: 18px;\n" +
+                "            cursor: pointer;\n" +
+                "        }\n" +
                 "        .delete-btn {\n" +
                 "            background: #ef4444;\n" +
                 "            color: white;\n" +
@@ -848,6 +996,20 @@ public class WebDashboard {
                 "            </div>\n" +
                 "        </div>\n" +
                 "\n" +
+                "        <div class='settings-card'>\n" +
+                "            <h2>Browser Settings</h2>\n" +
+                "            <div class='form-group'>\n" +
+                "                <label for='browserChoice'>Default Browser for Auto-Open</label>\n" +
+                "                <select id='browserChoice' style='width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;'>\n" +
+                "                    <option value='default'>System Default Browser</option>\n" +
+                "                    <option value='chrome'>Google Chrome</option>\n" +
+                "                    <option value='firefox'>Mozilla Firefox</option>\n" +
+                "                    <option value='edge'>Microsoft Edge</option>\n" +
+                "                </select>\n" +
+                "                <div class='help-text'>Select which browser to use for opening paths marked with auto-open checkbox</div>\n" +
+                "            </div>\n" +
+                "        </div>\n" +
+                "\n" +
                 "        <div style='display: flex; gap: 10px;'>\n" +
                 "            <button class='save-btn' onclick='saveSettings()' style='flex: 1;'>💾 Save Settings</button>\n" +
                 "            <button class='save-btn' onclick='applyNow()' style='flex: 1; background: #10b981;'>⚡ Apply Now</button>\n" +
@@ -865,9 +1027,19 @@ public class WebDashboard {
                 "                document.getElementById('ipStart').value = config['network.ip.range.start'] || '';\n" +
                 "                document.getElementById('ipEnd').value = config['network.ip.range.end'] || '';\n" +
                 "                document.getElementById('port').value = config['network.port'] || '';\n" +
+                "                document.getElementById('browserChoice').value = config['browser.choice'] || 'default';\n" +
                 "                \n" +
                 "                const checkPaths = config['check.paths'] || '';\n" +
-                "                endpoints = checkPaths ? checkPaths.split(',').map(s => s.trim()).filter(s => s) : [];\n" +
+                "                const autoOpenPaths = config['check.paths.autoopen'] || '';\n" +
+                "                \n" +
+                "                const paths = checkPaths ? checkPaths.split(',').map(s => s.trim()).filter(s => s) : [];\n" +
+                "                const autoOpens = autoOpenPaths ? autoOpenPaths.split(',').map(s => s.trim()) : [];\n" +
+                "                \n" +
+                "                endpoints = paths.map(path => ({\n" +
+                "                    path: path,\n" +
+                "                    autoOpen: autoOpens.includes(path)\n" +
+                "                }));\n" +
+                "                \n" +
                 "                renderEndpoints();\n" +
                 "            } catch (error) {\n" +
                 "                showMessage('Failed to load configuration: ' + error.message, 'error');\n" +
@@ -880,21 +1052,31 @@ public class WebDashboard {
                 "                list.innerHTML = '<div style=\"text-align:center;color:#999;padding:20px;\">No endpoints configured</div>';\n" +
                 "                return;\n" +
                 "            }\n" +
-                "            list.innerHTML = endpoints.map((ep, idx) => \n" +
-                "                `<div class='endpoint-item'>\n" +
-                "                    <span>${ep}</span>\n" +
-                "                    <button class='delete-btn' onclick='removeEndpoint(${idx})'>✕ Delete</button>\n" +
-                "                </div>`\n" +
-                "            ).join('');\n" +
+                "            list.innerHTML = endpoints.map((ep, idx) => {\n" +
+                "                const epData = typeof ep === 'string' ? {path: ep, autoOpen: false} : ep;\n" +
+                "                return `<div class='endpoint-item'>\n" +
+                "                    <span>${epData.path}</span>\n" +
+                "                    <div class='endpoint-controls'>\n" +
+                "                        <label class='auto-open-checkbox'>\n" +
+                "                            <input type='checkbox' ${epData.autoOpen ? 'checked' : ''} onchange='toggleAutoOpen(${idx})'>\n" +
+                "                            🌐 Auto-open in browser\n" +
+                "                        </label>\n" +
+                "                        <button class='delete-btn' onclick='removeEndpoint(${idx})'>✕ Delete</button>\n" +
+                "                    </div>\n" +
+                "                </div>`;\n" +
+                "            }).join('');\n" +
                 "        }\n" +
                 "\n" +
                 "        function addEndpoint() {\n" +
                 "            const input = document.getElementById('newEndpoint');\n" +
                 "            const value = input.value.trim();\n" +
-                "            if (value && !endpoints.includes(value)) {\n" +
-                "                endpoints.push(value);\n" +
-                "                input.value = '';\n" +
-                "                renderEndpoints();\n" +
+                "            if (value) {\n" +
+                "                const exists = endpoints.some(ep => ep.path === value);\n" +
+                "                if (!exists) {\n" +
+                "                    endpoints.push({path: value, autoOpen: false});\n" +
+                "                    input.value = '';\n" +
+                "                    renderEndpoints();\n" +
+                "                }\n" +
                 "            }\n" +
                 "        }\n" +
                 "\n" +
@@ -903,12 +1085,21 @@ public class WebDashboard {
                 "            renderEndpoints();\n" +
                 "        }\n" +
                 "\n" +
+                "        function toggleAutoOpen(index) {\n" +
+                "            endpoints[index].autoOpen = !endpoints[index].autoOpen;\n" +
+                "        }\n" +
+                "\n" +
                 "        async function saveSettings() {\n" +
+                "            const paths = endpoints.map(ep => ep.path).join(', ');\n" +
+                "            const autoOpenPaths = endpoints.filter(ep => ep.autoOpen).map(ep => ep.path).join(', ');\n" +
+                "            \n" +
                 "            const config = {\n" +
                 "                'network.ip.range.start': document.getElementById('ipStart').value.trim(),\n" +
                 "                'network.ip.range.end': document.getElementById('ipEnd').value.trim(),\n" +
                 "                'network.port': document.getElementById('port').value.trim(),\n" +
-                "                'check.paths': endpoints.join(', ')\n" +
+                "                'check.paths': paths,\n" +
+                "                'check.paths.autoopen': autoOpenPaths,\n" +
+                "                'browser.choice': document.getElementById('browserChoice').value\n" +
                 "            };\n" +
                 "\n" +
                 "            try {\n" +

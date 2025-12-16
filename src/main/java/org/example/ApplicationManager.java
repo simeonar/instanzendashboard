@@ -25,7 +25,7 @@ public class ApplicationManager {
     
     private HealthChecker healthChecker;
     private NetworkScanner networkScanner;
-    private ScheduledExecutorService scheduler;
+    private boolean isScanning = false;
     
     public ApplicationManager(ConfigManager configManager, DashboardManager dashboardManager, ConsoleDashboard consoleDashboard) {
         this.configManager = configManager;
@@ -34,13 +34,10 @@ public class ApplicationManager {
     }
     
     /**
-     * Start or restart the scanner with current configuration
+     * Initialize scanner with current configuration (no auto-scan)
      */
     public synchronized void startScanner() throws IOException {
-        logger.info("Starting scanner with current configuration...");
-        
-        // Stop existing scanner if running
-        stopScanner();
+        logger.info("Initializing scanner with current configuration...");
         
         // Reload configuration
         configManager.reloadProperties();
@@ -71,51 +68,55 @@ public class ApplicationManager {
                 configManager.getCheckPaths()
         );
         
-        // Create scheduler for periodic scanning
-        scheduler = Executors.newScheduledThreadPool(1);
+        logger.info("Scanner initialized successfully (manual scan mode)");
+    }
+    
+    /**
+     * Perform a manual scan
+     */
+    public synchronized void performScan() {
+        if (isScanning) {
+            logger.warn("Scan already in progress");
+            throw new RuntimeException("Scan already in progress");
+        }
         
-        // Schedule periodic scans
-        scheduler.scheduleAtFixedRate(() -> {
-            try {
-                logger.info("Starting scheduled scan...");
-                java.util.List<org.example.model.Instance> instances = networkScanner.scanRange(
-                        configManager.getIpRangeStart(),
-                        configManager.getIpRangeEnd(),
-                        configManager.getNetworkPort()
-                );
-                
-                // Filter unreachable if configured
-                if (configManager.isDashboardFilterUnreachable()) {
-                    instances = instances.stream()
-                            .filter(org.example.model.Instance::isReachable)
-                            .collect(java.util.stream.Collectors.toList());
-                }
-                
-                dashboardManager.updateInstances(instances);
-                consoleDashboard.render(dashboardManager);
-            } catch (Exception e) {
-                logger.error("Error during scheduled scan", e);
+        isScanning = true;
+        try {
+            logger.info("Starting manual scan...");
+            java.util.List<org.example.model.Instance> instances = networkScanner.scanRange(
+                    configManager.getIpRangeStart(),
+                    configManager.getIpRangeEnd(),
+                    configManager.getNetworkPort()
+            );
+            
+            // Filter unreachable if configured
+            if (configManager.isDashboardFilterUnreachable()) {
+                instances = instances.stream()
+                        .filter(org.example.model.Instance::isReachable)
+                        .collect(java.util.stream.Collectors.toList());
             }
-        }, 0, configManager.getScanIntervalSeconds(), TimeUnit.SECONDS);
-        
-        logger.info("Scanner started successfully");
+            
+            dashboardManager.updateInstances(instances);
+            logger.info("Manual scan completed: {} instances found", instances.size());
+        } catch (Exception e) {
+            logger.error("Error during manual scan", e);
+            throw new RuntimeException("Scan failed: " + e.getMessage());
+        } finally {
+            isScanning = false;
+        }
+    }
+    
+    /**
+     * Check if scan is currently running
+     */
+    public boolean isScanning() {
+        return isScanning;
     }
     
     /**
      * Stop the scanner
      */
     public synchronized void stopScanner() {
-        if (scheduler != null && !scheduler.isShutdown()) {
-            logger.info("Stopping scanner...");
-            scheduler.shutdownNow();
-            try {
-                scheduler.awaitTermination(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            scheduler = null;
-        }
-        
         if (networkScanner != null) {
             networkScanner.shutdown();
             networkScanner = null;
