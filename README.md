@@ -18,6 +18,23 @@ A Java 8 application for monitoring network instances with multi-level health ch
 - Java 8 or higher
 - Maven 3.x
 
+## Quick Start
+
+1. Build the project:
+   ```bash
+   mvn clean package
+   ```
+
+2. Run the application:
+   ```bash
+   java -jar target/InstanzenDashboard-1.0-SNAPSHOT-jar-with-dependencies.jar
+   ```
+
+3. Open your browser and navigate to:
+   ```
+   http://localhost:8081
+   ```
+
 ## Configuration
 
 1. Copy the template configuration file:
@@ -56,6 +73,42 @@ A Java 8 application for monitoring network instances with multi-level health ch
    dashboard.title=Instance Dashboard
    dashboard.show.metadata=true
    dashboard.filter.unreachable=false
+
+   # Web dashboard settings
+   web.dashboard.enabled=true
+   web.dashboard.port=8081
+   ```
+
+## Web Dashboard Features
+
+The application includes a modern web-based dashboard accessible via browser:
+
+- 🌐 **Browser Access**: Open `http://localhost:8081` in any browser
+- 🔄 **Auto-Refresh**: Updates every 5 seconds without page reload
+- 📊 **Real-time Statistics**: Live counters for instance health status
+- 🎨 **Modern UI**: Gradient design with smooth animations
+- 🔗 **Clickable Endpoints**: Each path has an "Open" button to launch in browser
+- 📱 **Responsive Design**: Works on desktop, tablet, and mobile
+- 🔍 **Per-Path Details**: See status, HTTP code, and response time for each endpoint
+- 💾 **Metadata Display**: Shows branch, version, commit for each instance
+- 🎯 **Direct Links**: Click any path to open it in a new browser tab
+
+### Web Dashboard Configuration
+
+```properties
+# Enable/disable web dashboard
+web.dashboard.enabled=true
+
+# Port for web server (default: 8081)
+web.dashboard.port=8081
+```
+
+### Console vs Web Dashboard
+
+- **Console Dashboard**: Text-based, refreshes in terminal
+- **Web Dashboard**: Browser-based, better UX, clickable links
+- Both can run simultaneously
+- Web dashboard recommended for production use
    ```
 
 ## Instance Status Levels
