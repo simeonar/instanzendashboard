@@ -1,0 +1,20 @@
+# Instance Dashboard Configuration Template
+# Copy this file to application.properties and configure your settings
+
+# Network scan settings
+network.ip.range.start=192.168.1.1
+network.ip.range.end=192.168.1.254
+network.port=8080
+
+# Scan interval in seconds (avoid flooding)
+scan.interval.seconds=60
+
+# Connection timeout in milliseconds
+connection.timeout.ms=2000
+
+# Application health check endpoint (optional)
+health.check.endpoint=/health
+
+# Dashboard settings
+dashboard.refresh.seconds=30
+dashboard.title=Instance Dashboard

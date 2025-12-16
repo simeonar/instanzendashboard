@@ -68,3 +68,6 @@ Thumbs.db
 
 # Application specific
 *.log.*
+
+# Configuration files with sensitive data
+src/main/resources/application.properties
