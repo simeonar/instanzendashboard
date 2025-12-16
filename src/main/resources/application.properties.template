@@ -35,3 +35,7 @@ dashboard.refresh.seconds=30
 dashboard.title=Instance Dashboard
 dashboard.show.metadata=true
 dashboard.filter.unreachable=false
+
+# Web dashboard settings
+web.dashboard.enabled=true
+web.dashboard.port=8081

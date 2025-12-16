@@ -129,4 +129,13 @@ public class ConfigManager {
     public boolean isDashboardFilterUnreachable() {
         return Boolean.parseBoolean(getProperty("dashboard.filter.unreachable", "false"));
     }
+
+    // Web dashboard settings
+    public boolean isWebDashboardEnabled() {
+        return Boolean.parseBoolean(getProperty("web.dashboard.enabled", "true"));
+    }
+
+    public int getWebDashboardPort() {
+        return getIntProperty("web.dashboard.port", 8081);
+    }
 }

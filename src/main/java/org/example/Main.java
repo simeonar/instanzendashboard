@@ -3,6 +3,7 @@ package org.example;
 import org.example.config.ConfigManager;
 import org.example.dashboard.ConsoleDashboard;
 import org.example.dashboard.DashboardManager;
+import org.example.dashboard.WebDashboard;
 import org.example.model.Instance;
 import org.example.scanner.HealthChecker;
 import org.example.scanner.NetworkScanner;
@@ -62,6 +63,18 @@ public class Main {
                     config.isDashboardShowMetadata()
             );
 
+            // Start web dashboard if enabled
+            WebDashboard webDashboard = null;
+            if (config.isWebDashboardEnabled()) {
+                try {
+                    webDashboard = new WebDashboard(config.getWebDashboardPort(), dashboardManager);
+                    webDashboard.start();
+                    logger.info("Web dashboard available at http://localhost:{}", config.getWebDashboardPort());
+                } catch (IOException e) {
+                    logger.error("Failed to start web dashboard", e);
+                }
+            }
+
             // Scheduled executor for periodic scanning
             ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
@@ -105,11 +118,17 @@ public class Main {
 
             logger.info("Dashboard started. Press Ctrl+C to exit.");
 
+            // For shutdown hook
+            final WebDashboard finalWebDashboard = webDashboard;
+            
             // Shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutting down...");
                 scheduler.shutdown();
                 scanner.shutdown();
+                if (finalWebDashboard != null) {
+                    finalWebDashboard.stop();
+                }
                 try {
                     scheduler.awaitTermination(5, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
