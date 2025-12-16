@@ -183,8 +183,9 @@ public class HealthChecker {
 
     /**
      * Tries multiple paths to find a working HTTP endpoint
+     * Returns the first working path or null if none work
      */
-    public boolean tryMultiplePaths(Instance instance, String[] paths) {
+    public String tryMultiplePaths(Instance instance, String[] paths) {
         for (String path : paths) {
             try {
                 String url = "http://" + instance.getIpAddress() + ":" + instance.getPort() + path;
@@ -194,12 +195,77 @@ public class HealthChecker {
                 
                 if (statusCode >= 200 && statusCode < 300) {
                     logger.debug("Found working path {} for {}", path, instance.getAddress());
-                    return true;
+                    return path;
                 }
             } catch (IOException e) {
-                // Try next path
+                logger.trace("Path {} failed for {}: {}", path, instance.getAddress(), e.getMessage());
             }
         }
-        return false;
+        return null;
+    }
+    
+    /**
+     * Checks multiple paths and tries to extract metadata from each
+     * Uses the best result found (preferring paths with metadata)
+     */
+    public void checkMultiplePathsWithMetadata(Instance instance, String[] paths) {
+        InstanceStatus bestStatus = InstanceStatus.PORT_OPEN;
+        String bestPath = null;
+        
+        for (String path : paths) {
+            String url = "http://" + instance.getIpAddress() + ":" + instance.getPort() + path;
+            
+            try {
+                long startTime = System.currentTimeMillis();
+                HttpURLConnection connection = openConnection(url);
+                
+                int statusCode = connection.getResponseCode();
+                long responseTime = System.currentTimeMillis() - startTime;
+                
+                if (statusCode >= 200 && statusCode < 300) {
+                    instance.setHttpStatusCode(statusCode);
+                    instance.setResponseTimeMs(responseTime);
+                    
+                    // Try to read response and extract metadata
+                    String responseBody = readResponse(connection);
+                    boolean hasMetadata = false;
+                    
+                    if (metadataEnabled && responseBody != null && !responseBody.isEmpty()) {
+                        int metadataCount = instance.getMetadata().size();
+                        extractMetadata(instance, responseBody);
+                        hasMetadata = instance.getMetadata().size() > metadataCount;
+                    }
+                    
+                    // Determine status priority: API_HEALTHY > HTTP_OK
+                    if (hasMetadata && statusCode == expectedStatusCode) {
+                        instance.setStatus(InstanceStatus.API_HEALTHY);
+                        bestStatus = InstanceStatus.API_HEALTHY;
+                        bestPath = path;
+                        logger.debug("API Healthy found at {} ({}ms)", url, responseTime);
+                        // Continue checking other paths
+                    } else if (statusCode >= 200 && statusCode < 300) {
+                        if (bestStatus != InstanceStatus.API_HEALTHY) {
+                            instance.setStatus(InstanceStatus.HTTP_OK);
+                            bestStatus = InstanceStatus.HTTP_OK;
+                            bestPath = path;
+                        }
+                        logger.debug("HTTP OK at {}", url);
+                    }
+                }
+                
+                connection.disconnect();
+                
+            } catch (IOException e) {
+                logger.trace("Failed to check {}: {}", url, e.getMessage());
+            }
+        }
+        
+        if (bestPath != null) {
+            logger.info("Best path for {}: {} (status: {})", 
+                instance.getAddress(), bestPath, instance.getStatus());
+        } else {
+            instance.setStatus(InstanceStatus.PORT_OPEN);
+            instance.setErrorMessage("No HTTP paths responding");
+        }
     }
 }

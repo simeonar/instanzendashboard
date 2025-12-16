@@ -79,22 +79,10 @@ public class NetworkScanner {
             return instance;
         }
         
-        // Level 2: HTTP Check (if enabled)
-        if (healthCheckEnabled) {
-            // Try multiple paths to find working HTTP endpoint
-            boolean httpWorks = healthChecker.tryMultiplePaths(instance, checkPaths);
-            
-            if (!httpWorks) {
-                // Port is open but HTTP not responding
-                instance.setStatus(InstanceStatus.PORT_OPEN);
-                return instance;
-            }
-            
-            // Check main path for better status
-            healthChecker.checkHttp(instance, checkPaths[0]);
-            
-            // Level 3: REST API Health Check
-            healthChecker.checkApiHealth(instance);
+        // Level 2 & 3: HTTP Check with metadata extraction (if enabled)
+        if (healthCheckEnabled && checkPaths != null && checkPaths.length > 0) {
+            // Check all configured paths and extract metadata from any that work
+            healthChecker.checkMultiplePathsWithMetadata(instance, checkPaths);
         } else {
             // No HTTP check, just mark as port open
             instance.setStatus(InstanceStatus.PORT_OPEN);
