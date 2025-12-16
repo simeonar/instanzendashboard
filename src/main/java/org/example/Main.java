@@ -4,18 +4,22 @@ import org.example.config.ConfigManager;
 import org.example.dashboard.ConsoleDashboard;
 import org.example.dashboard.DashboardManager;
 import org.example.model.Instance;
+import org.example.scanner.HealthChecker;
 import org.example.scanner.NetworkScanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
- * Main application class for Instance Dashboard
+ * Main application class for Instance Dashboard with multi-level health checking
  */
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
@@ -26,29 +30,63 @@ public class Main {
             ConfigManager config = new ConfigManager();
             logger.info("Configuration loaded successfully");
 
-            // Initialize components
+            // Prepare metadata field mapping
+            Map<String, String> metadataMapping = new HashMap<>();
+            metadataMapping.put("branch", config.getMetadataBranchField());
+            metadataMapping.put("version", config.getMetadataVersionField());
+            metadataMapping.put("commit", config.getMetadataCommitField());
+            metadataMapping.put("timestamp", config.getMetadataTimestampField());
+            metadataMapping.put("status", config.getMetadataStatusField());
+
+            // Initialize health checker
+            HealthChecker healthChecker = new HealthChecker(
+                    config.getHealthCheckTimeoutMs(),
+                    config.getHealthCheckPath(),
+                    config.getHealthCheckExpectedStatus(),
+                    config.isMetadataEnabled(),
+                    metadataMapping
+            );
+
+            // Initialize scanner with health checker
             NetworkScanner scanner = new NetworkScanner(
                     config.getConnectionTimeoutMs(),
-                    Runtime.getRuntime().availableProcessors() * 2
+                    Runtime.getRuntime().availableProcessors() * 2,
+                    healthChecker,
+                    config.isHealthCheckEnabled(),
+                    config.getCheckPaths()
             );
 
             DashboardManager dashboardManager = new DashboardManager();
-            ConsoleDashboard consoleDashboard = new ConsoleDashboard(config.getDashboardTitle());
+            ConsoleDashboard consoleDashboard = new ConsoleDashboard(
+                    config.getDashboardTitle(),
+                    config.isDashboardShowMetadata()
+            );
 
             // Scheduled executor for periodic scanning
             ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-            // Scan task
+            // Scan task with filtering
             Runnable scanTask = () -> {
                 try {
-                    logger.info("Starting network scan...");
+                    logger.info("Starting network scan with health checks...");
                     List<Instance> instances = scanner.scanRange(
                             config.getIpRangeStart(),
                             config.getIpRangeEnd(),
                             config.getNetworkPort()
                     );
+                    
+                    // Filter unreachable if configured
+                    if (config.isDashboardFilterUnreachable()) {
+                        instances = instances.stream()
+                                .filter(Instance::isReachable)
+                                .collect(Collectors.toList());
+                    }
+                    
                     dashboardManager.updateInstances(instances);
                     consoleDashboard.render(dashboardManager);
+                    
+                    logger.info("Scan complete: {} instances, {} healthy", 
+                            instances.size(), dashboardManager.getHealthyInstances());
                 } catch (Exception e) {
                     logger.error("Error during scan", e);
                 }

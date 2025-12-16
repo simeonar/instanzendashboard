@@ -12,9 +12,26 @@ scan.interval.seconds=60
 # Connection timeout in milliseconds
 connection.timeout.ms=2000
 
-# Application health check endpoint (optional)
-health.check.endpoint=/health
+# HTTP/REST API health check settings
+health.check.enabled=true
+health.check.path=/api/health
+health.check.method=GET
+health.check.timeout.ms=3000
+health.check.expected.status=200
+
+# Metadata extraction from API response
+metadata.enabled=true
+metadata.branch.field=branch
+metadata.version.field=version
+metadata.commit.field=commit
+metadata.timestamp.field=deployedAt
+metadata.status.field=status
+
+# Alternative paths to check (comma-separated)
+check.paths=/,/index.html,/health
 
 # Dashboard settings
 dashboard.refresh.seconds=30
 dashboard.title=Instance Dashboard
+dashboard.show.metadata=true
+dashboard.filter.unreachable=false

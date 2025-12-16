@@ -72,4 +72,61 @@ public class ConfigManager {
     public String getDashboardTitle() {
         return getProperty("dashboard.title", "Instance Dashboard");
     }
+
+    // Health check settings
+    public boolean isHealthCheckEnabled() {
+        return Boolean.parseBoolean(getProperty("health.check.enabled", "true"));
+    }
+
+    public String getHealthCheckPath() {
+        return getProperty("health.check.path", "/api/health");
+    }
+
+    public int getHealthCheckTimeoutMs() {
+        return getIntProperty("health.check.timeout.ms", 3000);
+    }
+
+    public int getHealthCheckExpectedStatus() {
+        return getIntProperty("health.check.expected.status", 200);
+    }
+
+    // Metadata settings
+    public boolean isMetadataEnabled() {
+        return Boolean.parseBoolean(getProperty("metadata.enabled", "true"));
+    }
+
+    public String getMetadataBranchField() {
+        return getProperty("metadata.branch.field", "branch");
+    }
+
+    public String getMetadataVersionField() {
+        return getProperty("metadata.version.field", "version");
+    }
+
+    public String getMetadataCommitField() {
+        return getProperty("metadata.commit.field", "commit");
+    }
+
+    public String getMetadataTimestampField() {
+        return getProperty("metadata.timestamp.field", "deployedAt");
+    }
+
+    public String getMetadataStatusField() {
+        return getProperty("metadata.status.field", "status");
+    }
+
+    // Check paths
+    public String[] getCheckPaths() {
+        String paths = getProperty("check.paths", "/,/index.html,/health");
+        return paths.split(",");
+    }
+
+    // Dashboard settings
+    public boolean isDashboardShowMetadata() {
+        return Boolean.parseBoolean(getProperty("dashboard.show.metadata", "true"));
+    }
+
+    public boolean isDashboardFilterUnreachable() {
+        return Boolean.parseBoolean(getProperty("dashboard.filter.unreachable", "false"));
+    }
 }
