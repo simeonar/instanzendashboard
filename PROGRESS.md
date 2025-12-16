@@ -1,5 +1,93 @@
 # InstanzenDashboard - Development Progress
 
+## 2025-12-16: Fixes and Improvements (Commit: b936509)
+
+### Fixed Issues
+
+#### 1. ✅ Instance Status Logic Correction
+- **Problem**: Instance showed HTTP_OK overall status even when first path was UNREACHABLE
+- **Root Cause**: `checkMultiplePathsWithMetadata()` used "best status" approach - if any path succeeded, entire instance marked as successful
+- **Fix**: Changed to degraded status when some paths work but others don't
+- **New Logic**:
+  - All paths successful → use best status (API_HEALTHY or HTTP_OK)
+  - Some paths successful, some failed → API_DEGRADED with detailed message
+  - No paths successful → UNREACHABLE
+- **File**: HealthChecker.java
+- **Benefit**: More accurate instance health representation
+
+#### 2. ✅ Removed "API Healthy" from Dashboard Stats
+- **Problem**: "API Healthy" card always showed 0 in the statistics header
+- **Reason**: Most endpoints return HTTP_OK without metadata, so API_HEALTHY status rarely achieved
+- **Fix**: Removed from both backend stats and frontend UI
+- **Changes**:
+  - StatsHandler: Removed `stats.put("healthy", ...)` 
+  - Dashboard HTML: Removed "API Healthy" stat card
+  - JavaScript: Removed `healthyInstances` update
+- **Files**: WebDashboard.java
+- **Benefit**: Cleaner UI showing only relevant metrics
+
+#### 3. ✅ Fixed "Open Button" Visibility Logic
+- **Problem**: Checkbox labeled "Auto-open in browser" but actually should control button visibility
+- **User Clarification**: "Checkbox should mean that 'Open' button will be visible in the row"
+- **Fix**: 
+  - Changed checkbox label from "🌐 Auto-open in browser" to "🔘 Show Open button"
+  - Updated help text to explain checkbox controls button visibility
+  - Modified dashboard to only show "Open" button for paths marked with checkbox
+  - Added `pathsWithOpenButton` array to track which paths have button enabled
+- **Technical Implementation**:
+  - StatsHandler sends `pathsWithOpenButton` from `check.paths.autoopen` config
+  - JavaScript stores this list globally
+  - When rendering path table, checks if path is in list before showing button
+  - Paths without checkbox show "-" instead of button
+- **Files**: WebDashboard.java
+- **Benefit**: Users control which endpoints get "Open" buttons, reducing UI clutter
+
+### Technical Details
+
+#### Status Determination Algorithm (HealthChecker.java)
+```java
+// Count successful, unreachable, and error paths
+if (successfulPaths > 0 && (unreachablePaths > 0 || errorPaths > 0)) {
+    // Mixed results = degraded
+    instance.setStatus(InstanceStatus.API_DEGRADED);
+    instance.setErrorMessage(String.format("%d/%d paths OK, %d unreachable, %d errors", 
+        successfulPaths, paths.length, unreachablePaths, errorPaths));
+} else if (successfulPaths > 0) {
+    // All successful = use best status
+    instance.setStatus(bestStatus);
+} else {
+    // None successful = unreachable
+    instance.setStatus(InstanceStatus.UNREACHABLE);
+}
+```
+
+#### Open Button Visibility (WebDashboard.java)
+```javascript
+// Global variable to store paths with Open button enabled
+let pathsWithOpenButton = [];
+
+// Load from stats
+if (stats.pathsWithOpenButton) {
+    pathsWithOpenButton = stats.pathsWithOpenButton.split(',').map(s => s.trim()).filter(s => s);
+}
+
+// Render table with conditional button
+const showOpenButton = pathsWithOpenButton.includes(path);
+if (showOpenButton) {
+    pathsHtml += '<button class="open-btn" onclick="window.open(\'' + url + '\', \'_blank\')">Open</button>';
+} else {
+    pathsHtml += '-';
+}
+```
+
+### Configuration Properties
+```properties
+check.paths.autoopen=/mobil/servlet/start?mde=100
+```
+Comma-separated list of paths that should show "Open" button in dashboard.
+
+---
+
 ## 2025-12-16: Major UX Redesign (Commit: fa7958e)
 
 ### Implemented Changes
