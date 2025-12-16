@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.example.model.Instance;
 import org.example.model.InstanceStatus;
+import org.example.model.PathCheckResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -205,14 +206,15 @@ public class HealthChecker {
     }
     
     /**
-     * Checks multiple paths and tries to extract metadata from each
-     * Uses the best result found (preferring paths with metadata)
+     * Checks multiple paths and stores individual results for each
+     * This allows monitoring of separate modules/endpoints
      */
     public void checkMultiplePathsWithMetadata(Instance instance, String[] paths) {
         InstanceStatus bestStatus = InstanceStatus.PORT_OPEN;
-        String bestPath = null;
+        int successfulPaths = 0;
         
         for (String path : paths) {
+            PathCheckResult pathResult = new PathCheckResult(path);
             String url = "http://" + instance.getIpAddress() + ":" + instance.getPort() + path;
             
             try {
@@ -222,50 +224,90 @@ public class HealthChecker {
                 int statusCode = connection.getResponseCode();
                 long responseTime = System.currentTimeMillis() - startTime;
                 
+                pathResult.setHttpStatusCode(statusCode);
+                pathResult.setResponseTimeMs(responseTime);
+                
                 if (statusCode >= 200 && statusCode < 300) {
-                    instance.setHttpStatusCode(statusCode);
-                    instance.setResponseTimeMs(responseTime);
+                    successfulPaths++;
                     
-                    // Try to read response and extract metadata
+                    // Try to read response and extract metadata for this path
                     String responseBody = readResponse(connection);
-                    boolean hasMetadata = false;
                     
                     if (metadataEnabled && responseBody != null && !responseBody.isEmpty()) {
-                        int metadataCount = instance.getMetadata().size();
-                        extractMetadata(instance, responseBody);
-                        hasMetadata = instance.getMetadata().size() > metadataCount;
+                        extractMetadataForPath(pathResult, responseBody);
+                        
+                        // Also add to instance metadata
+                        for (Map.Entry<String, String> entry : pathResult.getMetadata().entrySet()) {
+                            instance.addMetadata(entry.getKey(), entry.getValue());
+                        }
                     }
                     
-                    // Determine status priority: API_HEALTHY > HTTP_OK
-                    if (hasMetadata && statusCode == expectedStatusCode) {
-                        instance.setStatus(InstanceStatus.API_HEALTHY);
-                        bestStatus = InstanceStatus.API_HEALTHY;
-                        bestPath = path;
-                        logger.debug("API Healthy found at {} ({}ms)", url, responseTime);
-                        // Continue checking other paths
-                    } else if (statusCode >= 200 && statusCode < 300) {
+                    // Determine status for this specific path
+                    if (pathResult.hasMetadata() && statusCode == expectedStatusCode) {
+                        pathResult.setStatus(InstanceStatus.API_HEALTHY);
                         if (bestStatus != InstanceStatus.API_HEALTHY) {
-                            instance.setStatus(InstanceStatus.HTTP_OK);
+                            bestStatus = InstanceStatus.API_HEALTHY;
+                        }
+                        logger.debug("API Healthy at {} ({}ms)", url, responseTime);
+                    } else {
+                        pathResult.setStatus(InstanceStatus.HTTP_OK);
+                        if (bestStatus == InstanceStatus.PORT_OPEN) {
                             bestStatus = InstanceStatus.HTTP_OK;
-                            bestPath = path;
                         }
                         logger.debug("HTTP OK at {}", url);
                     }
+                } else {
+                    pathResult.setStatus(InstanceStatus.API_ERROR);
+                    pathResult.setErrorMessage("HTTP " + statusCode);
+                    logger.debug("HTTP Error at {}: {}", url, statusCode);
                 }
                 
                 connection.disconnect();
                 
             } catch (IOException e) {
+                pathResult.setStatus(InstanceStatus.UNREACHABLE);
+                pathResult.setErrorMessage(e.getMessage());
                 logger.trace("Failed to check {}: {}", url, e.getMessage());
             }
+            
+            // Store result for this path
+            instance.addPathResult(pathResult);
         }
         
-        if (bestPath != null) {
-            logger.info("Best path for {}: {} (status: {})", 
-                instance.getAddress(), bestPath, instance.getStatus());
+        // Set overall instance status based on best path result
+        instance.setStatus(bestStatus);
+        
+        if (successfulPaths > 0) {
+            logger.info("Instance {}: {}/{} paths responding (status: {})", 
+                instance.getAddress(), successfulPaths, paths.length, bestStatus);
         } else {
-            instance.setStatus(InstanceStatus.PORT_OPEN);
             instance.setErrorMessage("No HTTP paths responding");
+            logger.debug("Instance {}: No paths responding", instance.getAddress());
+        }
+    }
+    
+    /**
+     * Extracts metadata for a specific path result
+     */
+    private void extractMetadataForPath(PathCheckResult pathResult, String jsonResponse) {
+        try {
+            JsonObject jsonObject = gson.fromJson(jsonResponse, JsonObject.class);
+            if (jsonObject == null) {
+                return;
+            }
+
+            // Extract all mapped fields
+            for (Map.Entry<String, String> entry : metadataFieldMapping.entrySet()) {
+                String fieldName = entry.getValue();
+                if (jsonObject.has(fieldName)) {
+                    JsonElement element = jsonObject.get(fieldName);
+                    if (!element.isJsonNull()) {
+                        pathResult.addMetadata(entry.getKey(), element.getAsString());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.trace("Failed to extract metadata for path {}: {}", pathResult.getPath(), e.getMessage());
         }
     }
 }

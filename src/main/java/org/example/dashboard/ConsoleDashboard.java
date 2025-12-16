@@ -2,10 +2,12 @@ package org.example.dashboard;
 
 import org.example.model.Instance;
 import org.example.model.InstanceStatus;
+import org.example.model.PathCheckResult;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Enhanced console dashboard with metadata display
@@ -67,6 +69,43 @@ public class ConsoleDashboard {
             printDetailedTable(instances);
         } else {
             printSimpleTable(instances);
+        }
+        
+        // Show path-level results for instances with multiple paths checked
+        printPathResults(instances);
+    }
+    
+    private void printPathResults(List<Instance> instances) {
+        for (Instance instance : instances) {
+            if (instance.hasPathResults() && instance.getPathResults().size() > 1) {
+                System.out.println(ANSI_BOLD + "\nPath Results for " + instance.getAddress() + ":" + ANSI_RESET);
+                System.out.println("┌────────────────────────────────────┬──────────────────┬──────────┬─────────┐");
+                System.out.println("│ Path                               │ Status           │ HTTP     │ Time    │");
+                System.out.println("├────────────────────────────────────┼──────────────────┼──────────┼─────────┤");
+                
+                for (PathCheckResult pathResult : instance.getPathResults().values()) {
+                    printPathRow(pathResult);
+                }
+                
+                System.out.println("└────────────────────────────────────┴──────────────────┴──────────┴─────────┘");
+            }
+        }
+    }
+    
+    private void printPathRow(PathCheckResult pathResult) {
+        String path = String.format("%-34s", truncate(pathResult.getPath(), 34));
+        String status = formatStatus(pathResult.getStatus(), 16);
+        String httpCode = String.format("%-8s", pathResult.getHttpStatusCode() > 0 ? pathResult.getHttpStatusCode() : "-");
+        String time = String.format("%-7s", pathResult.getResponseTimeMs() >= 0 ? pathResult.getResponseTimeMs() + "ms" : "N/A");
+        
+        System.out.println("│ " + path + " │ " + status + " │ " + httpCode + " │ " + time + " │");
+        
+        // Show metadata for this path if any
+        if (pathResult.hasMetadata() && showMetadata) {
+            for (Map.Entry<String, String> entry : pathResult.getMetadata().entrySet()) {
+                String metaLine = "  └─ " + entry.getKey() + ": " + entry.getValue();
+                System.out.println("│ " + String.format("%-34s", truncate(metaLine, 34)) + " │                  │          │         │");
+            }
         }
     }
 

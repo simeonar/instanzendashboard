@@ -18,6 +18,9 @@ public class Instance {
     // Metadata extracted from API
     private final Map<String, String> metadata;
     
+    // Results for each checked path
+    private final Map<String, PathCheckResult> pathResults;
+    
     public Instance(String ipAddress, int port) {
         this.ipAddress = ipAddress;
         this.port = port;
@@ -26,6 +29,7 @@ public class Instance {
         this.responseTimeMs = -1;
         this.httpStatusCode = 0;
         this.metadata = new HashMap<>();
+        this.pathResults = new HashMap<>();
     }
 
     public String getIpAddress() {
@@ -103,7 +107,34 @@ public class Instance {
     public String getCommit() {
         return metadata.get("commit");
     }
+// Path results management
+    public Map<String, PathCheckResult> getPathResults() {
+        return new HashMap<>(pathResults);
+    }
 
+    public void addPathResult(PathCheckResult result) {
+        this.pathResults.put(result.getPath(), result);
+    }
+
+    public PathCheckResult getPathResult(String path) {
+        return pathResults.get(path);
+    }
+
+    public boolean hasPathResults() {
+        return !pathResults.isEmpty();
+    }
+
+    public int getHealthyPathsCount() {
+        int count = 0;
+        for (PathCheckResult result : pathResults.values()) {
+            if (result.isHealthy()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    
     public boolean isReachable() {
         return status != InstanceStatus.UNREACHABLE && status != InstanceStatus.UNKNOWN;
     }
