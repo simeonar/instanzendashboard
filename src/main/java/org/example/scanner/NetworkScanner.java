@@ -54,7 +54,11 @@ public class NetworkScanner {
                     logger.debug("Found instance: {} - Status: {}", 
                         instance.getAddress(), instance.getStatus().getDisplayName());
                 }
-            } catch (InterruptedException | ExecutionException e) {
+            } catch (InterruptedException e) {
+                logger.debug("Scan interrupted (scanner restarting)");
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ExecutionException e) {
                 logger.error("Error checking instance", e);
             }
         }
