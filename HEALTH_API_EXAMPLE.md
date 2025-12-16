@@ -71,7 +71,7 @@ public class HealthController {
 Test your health endpoint with curl:
 
 ```bash
-curl http://localhost:8080/api/health
+curl http://YOUR_INSTANCE_IP:YOUR_PORT/api/health
 ```
 
 Expected response should be valid JSON with at least the branch/version information.

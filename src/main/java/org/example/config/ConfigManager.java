@@ -42,15 +42,15 @@ public class ConfigManager {
     }
 
     public String getIpRangeStart() {
-        return getProperty("network.ip.range.start", "192.168.1.1");
+        return getProperty("network.ip.range.start", "10.0.0.1");
     }
 
     public String getIpRangeEnd() {
-        return getProperty("network.ip.range.end", "192.168.1.254");
+        return getProperty("network.ip.range.end", "10.0.0.254");
     }
 
     public int getNetworkPort() {
-        return getIntProperty("network.port", 8080);
+        return getIntProperty("network.port", 80);
     }
 
     public int getScanIntervalSeconds() {

@@ -2,9 +2,9 @@
 # Copy this file to application.properties and configure your settings
 
 # Network scan settings
-network.ip.range.start=192.168.1.1
-network.ip.range.end=192.168.1.254
-network.port=8080
+network.ip.range.start=10.0.0.1
+network.ip.range.end=10.0.0.254
+network.port=XXXX
 
 # Scan interval in seconds (avoid flooding)
 scan.interval.seconds=60
@@ -28,7 +28,7 @@ metadata.timestamp.field=deployedAt
 metadata.status.field=status
 
 # Alternative paths to check (comma-separated)
-check.paths=/,/index.html,/health
+check.paths=/,/health,/status
 
 # Dashboard settings
 dashboard.refresh.seconds=30

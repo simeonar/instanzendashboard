@@ -28,9 +28,9 @@ A Java 8 application for monitoring network instances with multi-level health ch
 2. Edit `src/main/resources/application.properties` with your settings:
    ```properties
    # Network scan settings
-   network.ip.range.start=192.168.0.1
-   network.ip.range.end=192.168.0.254
-   network.port=8080
+   network.ip.range.start=10.0.0.1
+   network.ip.range.end=10.0.0.254
+   network.port=XXXX
 
    # Scan interval in seconds
    scan.interval.seconds=60
@@ -49,7 +49,7 @@ A Java 8 application for monitoring network instances with multi-level health ch
    metadata.commit.field=commit
 
    # Alternative paths to check
-   check.paths=/,/index.html,/health
+   check.paths=/,/health,/status
 
    # Dashboard settings
    dashboard.refresh.seconds=30
