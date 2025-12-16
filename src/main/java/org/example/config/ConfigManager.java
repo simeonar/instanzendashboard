@@ -1,24 +1,39 @@
 package org.example.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 /**
  * Configuration manager for loading application settings
  */
 public class ConfigManager {
+    private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
     private static final String CONFIG_FILE = "application.properties";
     private final Properties properties;
+    private final String configFilePath;
 
     public ConfigManager() throws IOException {
         properties = new Properties();
+        
+        // Try to load from resources (bundled in JAR)
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE)) {
             if (input == null) {
                 throw new IOException("Unable to find " + CONFIG_FILE);
             }
             properties.load(input);
         }
+        
+        // Determine config file path for saving
+        String jarPath = ConfigManager.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+        java.io.File jarFile = new java.io.File(jarPath);
+        configFilePath = jarFile.getParent() + java.io.File.separator + CONFIG_FILE;
     }
 
     public String getProperty(String key) {
@@ -137,5 +152,37 @@ public class ConfigManager {
 
     public int getWebDashboardPort() {
         return getIntProperty("web.dashboard.port", 8081);
+    }
+
+    public int getWebDashboardRefreshSeconds() {
+        return getIntProperty("web.dashboard.refresh.seconds", 300);
+    }
+
+    /**
+     * Save configuration property
+     */
+    public synchronized void setProperty(String key, String value) {
+        properties.setProperty(key, value);
+    }
+
+    /**
+     * Save all properties to file
+     */
+    public synchronized void saveProperties() throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(configFilePath)) {
+            properties.store(fos, "Updated by InstanzenDashboard - " + new java.util.Date());
+        }
+        logger.info("Configuration saved to {}", configFilePath);
+    }
+
+    /**
+     * Get all properties as map
+     */
+    public Map<String, String> getAllProperties() {
+        Map<String, String> map = new HashMap<>();
+        for (String key : properties.stringPropertyNames()) {
+            map.put(key, properties.getProperty(key));
+        }
+        return map;
     }
 }

@@ -67,7 +67,12 @@ public class Main {
             WebDashboard webDashboard = null;
             if (config.isWebDashboardEnabled()) {
                 try {
-                    webDashboard = new WebDashboard(config.getWebDashboardPort(), dashboardManager);
+                    webDashboard = new WebDashboard(
+                            config.getWebDashboardPort(), 
+                            dashboardManager,
+                            config,
+                            config.getWebDashboardRefreshSeconds()
+                    );
                     webDashboard.start();
                     logger.info("Web dashboard available at http://localhost:{}", config.getWebDashboardPort());
                 } catch (IOException e) {

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import org.example.config.ConfigManager;
 import org.example.model.Instance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,12 +24,17 @@ public class WebDashboard {
     
     private final int port;
     private final DashboardManager dashboardManager;
+    private final ConfigManager configManager;
     private final Gson gson;
     private HttpServer server;
 
-    public WebDashboard(int port, DashboardManager dashboardManager) {
+    private final int refreshIntervalSeconds;
+
+    public WebDashboard(int port, DashboardManager dashboardManager, ConfigManager configManager, int refreshIntervalSeconds) {
         this.port = port;
         this.dashboardManager = dashboardManager;
+        this.configManager = configManager;
+        this.refreshIntervalSeconds = refreshIntervalSeconds;
         this.gson = new Gson();
     }
 
@@ -38,8 +44,10 @@ public class WebDashboard {
         // API endpoints
         server.createContext("/api/instances", new InstancesHandler());
         server.createContext("/api/stats", new StatsHandler());
+        server.createContext("/api/config", new ConfigHandler());
         
-        // Static content
+        // Pages
+        server.createContext("/settings", new SettingsPageHandler());
         server.createContext("/", new DashboardHandler());
         
         server.setExecutor(null);
@@ -113,8 +121,96 @@ public class WebDashboard {
         }
     }
 
+    /**     * Handler for configuration API endpoint
+     */
+    private class ConfigHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            String method = exchange.getRequestMethod();
+            
+            if ("GET".equals(method)) {
+                // Get current configuration
+                Map<String, String> config = configManager.getAllProperties();
+                String json = gson.toJson(config);
+                
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, response.length);
+                
+                OutputStream os = exchange.getResponseBody();
+                os.write(response);
+                os.close();
+                
+            } else if ("POST".equals(method)) {
+                // Update configuration
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                @SuppressWarnings("unchecked")
+                Map<String, String> updates = gson.fromJson(body, Map.class);
+                
+                try {
+                    for (Map.Entry<String, String> entry : updates.entrySet()) {
+                        configManager.setProperty(entry.getKey(), entry.getValue());
+                    }
+                    configManager.saveProperties();
+                    
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("success", true);
+                    result.put("message", "Configuration saved successfully. Restart required for changes to take effect.");
+                    
+                    String json = gson.toJson(result);
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                    
+                    byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response);
+                    os.close();
+                    
+                } catch (Exception e) {
+                    logger.error("Failed to save configuration", e);
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("success", false);
+                    result.put("message", "Failed to save configuration: " + e.getMessage());
+                    
+                    String json = gson.toJson(result);
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    
+                    byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(500, response.length);
+                    
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response);
+                    os.close();
+                }
+            } else {
+                exchange.sendResponseHeaders(405, -1);
+            }
+        }
+    }
+
     /**
-     * Handler for main dashboard HTML page
+     * Handler for settings page
+     */
+    private class SettingsPageHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            String html = generateSettingsPage();
+            
+            exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+            byte[] response = html.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, response.length);
+            
+            OutputStream os = exchange.getResponseBody();
+            os.write(response);
+            os.close();
+        }
+    }
+
+    /**     * Handler for main dashboard HTML page
      */
     private class DashboardHandler implements HttpHandler {
         @Override
@@ -288,6 +384,25 @@ public class WebDashboard {
                 "        .open-btn:hover {\n" +
                 "            background: #764ba2;\n" +
                 "        }\n" +
+                "        .refresh-btn {\n" +
+                "            background: white;\n" +
+                "            color: #667eea;\n" +
+                "            border: 2px solid #667eea;\n" +
+                "            padding: 10px 20px;\n" +
+                "            border-radius: 8px;\n" +
+                "            cursor: pointer;\n" +
+                "            font-size: 16px;\n" +
+                "            font-weight: 600;\n" +
+                "            transition: all 0.3s;\n" +
+                "        }\n" +
+                "        .refresh-btn:hover {\n" +
+                "            background: #667eea;\n" +
+                "            color: white;\n" +
+                "            transform: rotate(180deg);\n" +
+                "        }\n" +
+                "        .refresh-btn:active {\n" +
+                "            transform: rotate(180deg) scale(0.95);\n" +
+                "        }\n" +
                 "        .last-update {\n" +
                 "            text-align: center;\n" +
                 "            color: #6b7280;\n" +
@@ -304,7 +419,13 @@ public class WebDashboard {
                 "<body>\n" +
                 "    <div class=\"container\">\n" +
                 "        <div class=\"header\">\n" +
-                "            <h1>🖥️ Instance Dashboard</h1>\n" +
+                "            <div style=\"display: flex; justify-content: space-between; align-items: center;\">\n" +
+                "                <h1>🖥️ Instance Dashboard</h1>\n" +
+                "                <div>\n" +
+                "                    <a href='/settings' class=\"settings-btn\">⚙️ Settings</a>\n" +
+                "                    <button class=\"refresh-btn\" onclick=\"manualRefresh()\">🔄 Refresh</button>\n" +
+                "                </div>\n" +
+                "            </div>\n" +
                 "            <div class=\"last-update\" id=\"lastUpdate\">Loading...</div>\n" +
                 "        </div>\n" +
                 "\n" +
@@ -417,11 +538,322 @@ public class WebDashboard {
                 "            fetchInstances();\n" +
                 "        }\n" +
                 "\n" +
+                "        function manualRefresh() {\n" +
+                "            const btn = document.querySelector('.refresh-btn');\n" +
+                "            btn.disabled = true;\n" +
+                "            btn.style.opacity = '0.5';\n" +
+                "            \n" +
+                "            refresh();\n" +
+                "            \n" +
+                "            setTimeout(() => {\n" +
+                "                btn.disabled = false;\n" +
+                "                btn.style.opacity = '1';\n" +
+                "            }, 1000);\n" +
+                "        }\n" +
+                "\n" +
                 "        // Initial load\n" +
                 "        refresh();\n" +
                 "\n" +
-                "        // Auto-refresh every 5 seconds\n" +
-                "        setInterval(refresh, 5000);\n" +
+                "        // Auto-refresh based on configuration\n" +
+                "        setInterval(refresh, " + (refreshIntervalSeconds * 1000) + ");\n" +
+                "    </script>\n" +
+                "</body>\n" +
+                "</html>";
+    }
+
+    private String generateSettingsPage() {
+        return "<!DOCTYPE html>\n" +
+                "<html lang='en'>\n" +
+                "<head>\n" +
+                "    <meta charset='UTF-8'>\n" +
+                "    <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n" +
+                "    <title>Settings - Instanzen Dashboard</title>\n" +
+                "    <style>\n" +
+                "        * { margin: 0; padding: 0; box-sizing: border-box; }\n" +
+                "        body {\n" +
+                "            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n" +
+                "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n" +
+                "            min-height: 100vh;\n" +
+                "            padding: 20px;\n" +
+                "        }\n" +
+                "        .container {\n" +
+                "            max-width: 900px;\n" +
+                "            margin: 0 auto;\n" +
+                "        }\n" +
+                "        .header {\n" +
+                "            background: rgba(255,255,255,0.95);\n" +
+                "            padding: 20px;\n" +
+                "            border-radius: 10px;\n" +
+                "            margin-bottom: 20px;\n" +
+                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
+                "            display: flex;\n" +
+                "            justify-content: space-between;\n" +
+                "            align-items: center;\n" +
+                "        }\n" +
+                "        h1 { color: #333; font-size: 24px; }\n" +
+                "        .back-btn {\n" +
+                "            background: white;\n" +
+                "            border: 2px solid #9333ea;\n" +
+                "            padding: 8px 16px;\n" +
+                "            border-radius: 8px;\n" +
+                "            cursor: pointer;\n" +
+                "            text-decoration: none;\n" +
+                "            color: #9333ea;\n" +
+                "            font-weight: 600;\n" +
+                "            transition: all 0.3s ease;\n" +
+                "        }\n" +
+                "        .back-btn:hover {\n" +
+                "            background: #9333ea;\n" +
+                "            color: white;\n" +
+                "        }\n" +
+                "        .settings-card {\n" +
+                "            background: rgba(255,255,255,0.95);\n" +
+                "            padding: 30px;\n" +
+                "            border-radius: 10px;\n" +
+                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
+                "            margin-bottom: 20px;\n" +
+                "        }\n" +
+                "        .settings-card h2 {\n" +
+                "            color: #333;\n" +
+                "            margin-bottom: 20px;\n" +
+                "            font-size: 20px;\n" +
+                "            border-bottom: 2px solid #9333ea;\n" +
+                "            padding-bottom: 10px;\n" +
+                "        }\n" +
+                "        .form-group {\n" +
+                "            margin-bottom: 20px;\n" +
+                "        }\n" +
+                "        .form-group label {\n" +
+                "            display: block;\n" +
+                "            margin-bottom: 8px;\n" +
+                "            color: #555;\n" +
+                "            font-weight: 600;\n" +
+                "        }\n" +
+                "        .form-group input {\n" +
+                "            width: 100%;\n" +
+                "            padding: 10px;\n" +
+                "            border: 2px solid #ddd;\n" +
+                "            border-radius: 6px;\n" +
+                "            font-size: 14px;\n" +
+                "            transition: border-color 0.3s;\n" +
+                "        }\n" +
+                "        .form-group input:focus {\n" +
+                "            outline: none;\n" +
+                "            border-color: #9333ea;\n" +
+                "        }\n" +
+                "        .endpoints-list {\n" +
+                "            border: 2px solid #ddd;\n" +
+                "            border-radius: 6px;\n" +
+                "            padding: 10px;\n" +
+                "            max-height: 300px;\n" +
+                "            overflow-y: auto;\n" +
+                "        }\n" +
+                "        .endpoint-item {\n" +
+                "            display: flex;\n" +
+                "            justify-content: space-between;\n" +
+                "            align-items: center;\n" +
+                "            padding: 8px 10px;\n" +
+                "            margin-bottom: 5px;\n" +
+                "            background: #f8f9fa;\n" +
+                "            border-radius: 4px;\n" +
+                "        }\n" +
+                "        .endpoint-item:last-child { margin-bottom: 0; }\n" +
+                "        .delete-btn {\n" +
+                "            background: #ef4444;\n" +
+                "            color: white;\n" +
+                "            border: none;\n" +
+                "            padding: 5px 12px;\n" +
+                "            border-radius: 4px;\n" +
+                "            cursor: pointer;\n" +
+                "            font-size: 12px;\n" +
+                "            transition: background 0.3s;\n" +
+                "        }\n" +
+                "        .delete-btn:hover { background: #dc2626; }\n" +
+                "        .add-endpoint {\n" +
+                "            display: flex;\n" +
+                "            gap: 10px;\n" +
+                "            margin-top: 10px;\n" +
+                "        }\n" +
+                "        .add-endpoint input {\n" +
+                "            flex: 1;\n" +
+                "            padding: 8px;\n" +
+                "            border: 2px solid #ddd;\n" +
+                "            border-radius: 4px;\n" +
+                "        }\n" +
+                "        .add-btn, .save-btn {\n" +
+                "            background: #9333ea;\n" +
+                "            color: white;\n" +
+                "            border: none;\n" +
+                "            padding: 10px 24px;\n" +
+                "            border-radius: 6px;\n" +
+                "            cursor: pointer;\n" +
+                "            font-size: 14px;\n" +
+                "            font-weight: 600;\n" +
+                "            transition: all 0.3s;\n" +
+                "        }\n" +
+                "        .add-btn:hover, .save-btn:hover {\n" +
+                "            background: #7e22ce;\n" +
+                "            transform: scale(1.05);\n" +
+                "        }\n" +
+                "        .save-btn {\n" +
+                "            width: 100%;\n" +
+                "            margin-top: 20px;\n" +
+                "            font-size: 16px;\n" +
+                "        }\n" +
+                "        .message {\n" +
+                "            padding: 15px;\n" +
+                "            border-radius: 6px;\n" +
+                "            margin-bottom: 20px;\n" +
+                "            display: none;\n" +
+                "        }\n" +
+                "        .message.success {\n" +
+                "            background: #d1fae5;\n" +
+                "            border: 2px solid #10b981;\n" +
+                "            color: #065f46;\n" +
+                "        }\n" +
+                "        .message.error {\n" +
+                "            background: #fee2e2;\n" +
+                "            border: 2px solid #ef4444;\n" +
+                "            color: #991b1b;\n" +
+                "        }\n" +
+                "        .help-text {\n" +
+                "            font-size: 12px;\n" +
+                "            color: #777;\n" +
+                "            margin-top: 5px;\n" +
+                "        }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class='container'>\n" +
+                "        <div class='header'>\n" +
+                "            <h1>⚙️ Settings</h1>\n" +
+                "            <a href='/' class='back-btn'>← Back to Dashboard</a>\n" +
+                "        </div>\n" +
+                "\n" +
+                "        <div id='message' class='message'></div>\n" +
+                "\n" +
+                "        <div class='settings-card'>\n" +
+                "            <h2>Network Configuration</h2>\n" +
+                "            <div class='form-group'>\n" +
+                "                <label for='ipStart'>IP Range Start</label>\n" +
+                "                <input type='text' id='ipStart' placeholder='192.168.1.1'>\n" +
+                "                <div class='help-text'>Start IP address for scanning</div>\n" +
+                "            </div>\n" +
+                "            <div class='form-group'>\n" +
+                "                <label for='ipEnd'>IP Range End</label>\n" +
+                "                <input type='text' id='ipEnd' placeholder='192.168.1.254'>\n" +
+                "                <div class='help-text'>End IP address for scanning</div>\n" +
+                "            </div>\n" +
+                "            <div class='form-group'>\n" +
+                "                <label for='port'>Port</label>\n" +
+                "                <input type='text' id='port' placeholder='8080'>\n" +
+                "                <div class='help-text'>Port number to check</div>\n" +
+                "            </div>\n" +
+                "        </div>\n" +
+                "\n" +
+                "        <div class='settings-card'>\n" +
+                "            <h2>Health Check Endpoints</h2>\n" +
+                "            <div class='form-group'>\n" +
+                "                <label>Configured Endpoints</label>\n" +
+                "                <div class='endpoints-list' id='endpointsList'>\n" +
+                "                    <!-- Endpoints will be loaded here -->\n" +
+                "                </div>\n" +
+                "                <div class='add-endpoint'>\n" +
+                "                    <input type='text' id='newEndpoint' placeholder='/api/health' onkeypress='if(event.key===\"Enter\") addEndpoint()'>\n" +
+                "                    <button class='add-btn' onclick='addEndpoint()'>+ Add</button>\n" +
+                "                </div>\n" +
+                "                <div class='help-text'>Add multiple endpoints to check (e.g., /api/health, /status, /ping)</div>\n" +
+                "            </div>\n" +
+                "        </div>\n" +
+                "\n" +
+                "        <button class='save-btn' onclick='saveSettings()'>💾 Save Settings</button>\n" +
+                "    </div>\n" +
+                "\n" +
+                "    <script>\n" +
+                "        let endpoints = [];\n" +
+                "\n" +
+                "        async function loadConfig() {\n" +
+                "            try {\n" +
+                "                const response = await fetch('/api/config');\n" +
+                "                const config = await response.json();\n" +
+                "                \n" +
+                "                document.getElementById('ipStart').value = config['network.ip.range.start'] || '';\n" +
+                "                document.getElementById('ipEnd').value = config['network.ip.range.end'] || '';\n" +
+                "                document.getElementById('port').value = config['network.port'] || '';\n" +
+                "                \n" +
+                "                const checkPaths = config['check.paths'] || '';\n" +
+                "                endpoints = checkPaths ? checkPaths.split(',').map(s => s.trim()).filter(s => s) : [];\n" +
+                "                renderEndpoints();\n" +
+                "            } catch (error) {\n" +
+                "                showMessage('Failed to load configuration: ' + error.message, 'error');\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        function renderEndpoints() {\n" +
+                "            const list = document.getElementById('endpointsList');\n" +
+                "            if (endpoints.length === 0) {\n" +
+                "                list.innerHTML = '<div style=\"text-align:center;color:#999;padding:20px;\">No endpoints configured</div>';\n" +
+                "                return;\n" +
+                "            }\n" +
+                "            list.innerHTML = endpoints.map((ep, idx) => \n" +
+                "                `<div class='endpoint-item'>\n" +
+                "                    <span>${ep}</span>\n" +
+                "                    <button class='delete-btn' onclick='removeEndpoint(${idx})'>✕ Delete</button>\n" +
+                "                </div>`\n" +
+                "            ).join('');\n" +
+                "        }\n" +
+                "\n" +
+                "        function addEndpoint() {\n" +
+                "            const input = document.getElementById('newEndpoint');\n" +
+                "            const value = input.value.trim();\n" +
+                "            if (value && !endpoints.includes(value)) {\n" +
+                "                endpoints.push(value);\n" +
+                "                input.value = '';\n" +
+                "                renderEndpoints();\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        function removeEndpoint(index) {\n" +
+                "            endpoints.splice(index, 1);\n" +
+                "            renderEndpoints();\n" +
+                "        }\n" +
+                "\n" +
+                "        async function saveSettings() {\n" +
+                "            const config = {\n" +
+                "                'network.ip.range.start': document.getElementById('ipStart').value.trim(),\n" +
+                "                'network.ip.range.end': document.getElementById('ipEnd').value.trim(),\n" +
+                "                'network.port': document.getElementById('port').value.trim(),\n" +
+                "                'check.paths': endpoints.join(', ')\n" +
+                "            };\n" +
+                "\n" +
+                "            try {\n" +
+                "                const response = await fetch('/api/config', {\n" +
+                "                    method: 'POST',\n" +
+                "                    headers: { 'Content-Type': 'application/json' },\n" +
+                "                    body: JSON.stringify(config)\n" +
+                "                });\n" +
+                "                \n" +
+                "                const result = await response.json();\n" +
+                "                if (result.success) {\n" +
+                "                    showMessage(result.message, 'success');\n" +
+                "                } else {\n" +
+                "                    showMessage(result.message, 'error');\n" +
+                "                }\n" +
+                "            } catch (error) {\n" +
+                "                showMessage('Failed to save settings: ' + error.message, 'error');\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        function showMessage(text, type) {\n" +
+                "            const msg = document.getElementById('message');\n" +
+                "            msg.textContent = text;\n" +
+                "            msg.className = 'message ' + type;\n" +
+                "            msg.style.display = 'block';\n" +
+                "            setTimeout(() => { msg.style.display = 'none'; }, 5000);\n" +
+                "        }\n" +
+                "\n" +
+                "        // Load configuration on page load\n" +
+                "        loadConfig();\n" +
                 "    </script>\n" +
                 "</body>\n" +
                 "</html>";

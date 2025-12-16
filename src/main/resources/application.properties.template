@@ -39,3 +39,4 @@ dashboard.filter.unreachable=false
 # Web dashboard settings
 web.dashboard.enabled=true
 web.dashboard.port=8081
+web.dashboard.refresh.seconds=300
