@@ -112,6 +112,8 @@ public class WebDashboard {
             stats.put("degraded", dashboardManager.getDegradedInstances());
             stats.put("errors", dashboardManager.getErrorInstances());
             stats.put("lastUpdate", dashboardManager.getLastUpdateTime());
+            stats.put("scanInterval", configManager.getScanIntervalSeconds());
+            stats.put("currentTime", System.currentTimeMillis());
 
             String json = gson.toJson(stats);
             
@@ -486,6 +488,7 @@ public class WebDashboard {
                 "                </div>\n" +
                 "            </div>\n" +
                 "            <div class=\"last-update\" id=\"lastUpdate\">Loading...</div>\n" +
+                "            <div class=\"last-update\" id=\"nextScan\" style=\"margin-top: 5px; color: #9ca3af;\">Next scan in: calculating...</div>\n" +
                 "        </div>\n" +
                 "\n" +
                 "        <div class=\"stats\" id=\"stats\">\n" +
@@ -530,6 +533,16 @@ public class WebDashboard {
                 "                    \n" +
                 "                    const date = new Date(stats.lastUpdate);\n" +
                 "                    document.getElementById('lastUpdate').textContent = 'Last Update: ' + date.toLocaleString();\n" +
+                "                    \n" +
+                "                    // Calculate next scan time\n" +
+                "                    if (stats.lastUpdate && stats.scanInterval) {\n" +
+                "                        const lastUpdate = stats.lastUpdate;\n" +
+                "                        const scanInterval = stats.scanInterval * 1000;\n" +
+                "                        const nextScanTime = lastUpdate + scanInterval;\n" +
+                "                        const now = stats.currentTime || Date.now();\n" +
+                "                        const secondsUntilNext = Math.max(0, Math.floor((nextScanTime - now) / 1000));\n" +
+                "                        document.getElementById('nextScan').textContent = `Next scan in: ${secondsUntilNext}s (every ${stats.scanInterval}s)`;\n" +
+                "                    }\n" +
                 "                })\n" +
                 "                .catch(err => console.error('Error fetching stats:', err));\n" +
                 "        }\n" +
