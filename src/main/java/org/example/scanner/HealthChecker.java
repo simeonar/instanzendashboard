@@ -212,6 +212,8 @@ public class HealthChecker {
     public void checkMultiplePathsWithMetadata(Instance instance, String[] paths) {
         InstanceStatus bestStatus = InstanceStatus.PORT_OPEN;
         int successfulPaths = 0;
+        int unreachablePaths = 0;
+        int errorPaths = 0;
         
         for (String path : paths) {
             PathCheckResult pathResult = new PathCheckResult(path);
@@ -257,6 +259,7 @@ public class HealthChecker {
                         logger.debug("HTTP OK at {}", url);
                     }
                 } else {
+                    errorPaths++;
                     pathResult.setStatus(InstanceStatus.API_ERROR);
                     pathResult.setErrorMessage("HTTP " + statusCode);
                     logger.debug("HTTP Error at {}: {}", url, statusCode);
@@ -265,6 +268,7 @@ public class HealthChecker {
                 connection.disconnect();
                 
             } catch (IOException e) {
+                unreachablePaths++;
                 pathResult.setStatus(InstanceStatus.UNREACHABLE);
                 pathResult.setErrorMessage(e.getMessage());
                 logger.trace("Failed to check {}: {}", url, e.getMessage());
@@ -274,13 +278,22 @@ public class HealthChecker {
             instance.addPathResult(pathResult);
         }
         
-        // Set overall instance status based on best path result
-        instance.setStatus(bestStatus);
-        
-        if (successfulPaths > 0) {
+        // Set overall instance status based on all paths
+        // If some paths work but others don't - degraded
+        if (successfulPaths > 0 && (unreachablePaths > 0 || errorPaths > 0)) {
+            instance.setStatus(InstanceStatus.API_DEGRADED);
+            instance.setErrorMessage(String.format("%d/%d paths OK, %d unreachable, %d errors", 
+                successfulPaths, paths.length, unreachablePaths, errorPaths));
+            logger.info("Instance {} degraded: {}/{} paths OK", 
+                instance.getAddress(), successfulPaths, paths.length);
+        } else if (successfulPaths > 0) {
+            // All paths successful
+            instance.setStatus(bestStatus);
             logger.info("Instance {}: {}/{} paths responding (status: {})", 
                 instance.getAddress(), successfulPaths, paths.length, bestStatus);
         } else {
+            // No paths successful
+            instance.setStatus(InstanceStatus.UNREACHABLE);
             instance.setErrorMessage("No HTTP paths responding");
             logger.debug("Instance {}: No paths responding", instance.getAddress());
         }

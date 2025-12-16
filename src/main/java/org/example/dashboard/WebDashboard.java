@@ -108,13 +108,16 @@ public class WebDashboard {
 
             Map<String, Object> stats = new HashMap<>();
             stats.put("total", dashboardManager.getTotalInstances());
-            stats.put("healthy", dashboardManager.getHealthyInstances());
             stats.put("httpOk", dashboardManager.getHttpOkInstances());
             stats.put("degraded", dashboardManager.getDegradedInstances());
             stats.put("errors", dashboardManager.getErrorInstances());
             stats.put("lastUpdate", dashboardManager.getLastUpdateTime());
             stats.put("scanInterval", configManager.getScanIntervalSeconds());
             stats.put("currentTime", System.currentTimeMillis());
+            
+            // Add paths with Open button visibility
+            String autoOpenPaths = configManager.getProperty("check.paths.autoopen", "");
+            stats.put("pathsWithOpenButton", autoOpenPaths);
 
             String json = gson.toJson(stats);
             
@@ -608,10 +611,6 @@ public class WebDashboard {
                 "                <div class=\"label\">Total Instances</div>\n" +
                 "                <div class=\"value\" id=\"totalInstances\">0</div>\n" +
                 "            </div>\n" +
-                "            <div class=\"stat-card healthy\">\n" +
-                "                <div class=\"label\">API Healthy</div>\n" +
-                "                <div class=\"value\" id=\"healthyInstances\">0</div>\n" +
-                "            </div>\n" +
                 "            <div class=\"stat-card http-ok\">\n" +
                 "                <div class=\"label\">HTTP OK</div>\n" +
                 "                <div class=\"value\" id=\"httpOkInstances\">0</div>\n" +
@@ -633,15 +632,21 @@ public class WebDashboard {
                 "    </div>\n" +
                 "\n" +
                 "    <script>\n" +
+                "        let pathsWithOpenButton = [];\n" +
+                "        \n" +
                 "        function fetchStats() {\n" +
                 "            fetch('/api/stats')\n" +
                 "                .then(response => response.json())\n" +
                 "                .then(stats => {\n" +
                 "                    document.getElementById('totalInstances').textContent = stats.total;\n" +
-                "                    document.getElementById('healthyInstances').textContent = stats.healthy;\n" +
                 "                    document.getElementById('httpOkInstances').textContent = stats.httpOk;\n" +
                 "                    document.getElementById('degradedInstances').textContent = stats.degraded;\n" +
                 "                    document.getElementById('errorInstances').textContent = stats.errors;\n" +
+                "                    \n" +
+                "                    // Store paths with Open button enabled\n" +
+                "                    if (stats.pathsWithOpenButton) {\n" +
+                "                        pathsWithOpenButton = stats.pathsWithOpenButton.split(',').map(s => s.trim()).filter(s => s);\n" +
+                "                    }\n" +
                 "                    \n" +
                 "                    const date = new Date(stats.lastUpdate);\n" +
                 "                    document.getElementById('lastUpdate').textContent = 'Last Update: ' + date.toLocaleString();\n" +
@@ -689,12 +694,19 @@ public class WebDashboard {
                 "                            pathsHtml += '<table class=\"paths-table\"><thead><tr><th>Path</th><th>Status</th><th>HTTP Code</th><th>Response Time</th><th>Action</th></tr></thead><tbody>';\n" +
                 "                            for (const [path, result] of Object.entries(paths)) {\n" +
                 "                                const url = 'http://' + instance.ipAddress + ':' + instance.port + path;\n" +
+                "                                const showOpenButton = pathsWithOpenButton.includes(path);\n" +
                 "                                pathsHtml += '<tr>';\n" +
                 "                                pathsHtml += '<td><a href=\"' + url + '\" target=\"_blank\" class=\"path-link\">' + path + '</a></td>';\n" +
                 "                                pathsHtml += '<td><span class=\"status-badge status-' + result.status + '\">' + result.status + '</span></td>';\n" +
                 "                                pathsHtml += '<td>' + (result.httpStatusCode || '-') + '</td>';\n" +
                 "                                pathsHtml += '<td>' + (result.responseTimeMs >= 0 ? result.responseTimeMs + 'ms' : 'N/A') + '</td>';\n" +
-                "                                pathsHtml += '<td><button class=\"open-btn\" onclick=\"window.open(\\'' + url + '\\', \\'_blank\\')\">Open</button></td>';\n" +
+                "                                pathsHtml += '<td>';\n" +
+                "                                if (showOpenButton) {\n" +
+                "                                    pathsHtml += '<button class=\"open-btn\" onclick=\"window.open(\\'' + url + '\\', \\'_blank\\')\">Open</button>';\n" +
+                "                                } else {\n" +
+                "                                    pathsHtml += '-';\n" +
+                "                                }\n" +
+                "                                pathsHtml += '</td>';\n" +
                 "                                pathsHtml += '</tr>';\n" +
                 "                            }\n" +
                 "                            pathsHtml += '</tbody></table></details>';\n" +
@@ -992,7 +1004,7 @@ public class WebDashboard {
                 "                    <input type='text' id='newEndpoint' placeholder='/api/health' onkeypress='if(event.key===\"Enter\") addEndpoint()'>\n" +
                 "                    <button class='add-btn' onclick='addEndpoint()'>+ Add</button>\n" +
                 "                </div>\n" +
-                "                <div class='help-text'>Add multiple endpoints to check (e.g., /api/health, /status, /ping)</div>\n" +
+                "                <div class='help-text'>Add endpoints to check. Use checkbox to show 'Open' button for each path in dashboard.</div>\n" +
                 "            </div>\n" +
                 "        </div>\n" +
                 "\n" +
@@ -1059,7 +1071,7 @@ public class WebDashboard {
                 "                    <div class='endpoint-controls'>\n" +
                 "                        <label class='auto-open-checkbox'>\n" +
                 "                            <input type='checkbox' ${epData.autoOpen ? 'checked' : ''} onchange='toggleAutoOpen(${idx})'>\n" +
-                "                            🌐 Auto-open in browser\n" +
+                "                            🔘 Show Open button\n" +
                 "                        </label>\n" +
                 "                        <button class='delete-btn' onclick='removeEndpoint(${idx})'>✕ Delete</button>\n" +
                 "                    </div>\n" +
