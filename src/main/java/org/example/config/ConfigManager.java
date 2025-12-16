@@ -185,4 +185,18 @@ public class ConfigManager {
         }
         return map;
     }
+
+    /**
+     * Reload properties from file
+     */
+    public synchronized void reloadProperties() throws IOException {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE)) {
+            if (input == null) {
+                throw new IOException("Unable to find " + CONFIG_FILE);
+            }
+            properties.clear();
+            properties.load(input);
+            logger.info("Configuration reloaded from {}", CONFIG_FILE);
+        }
+    }
 }

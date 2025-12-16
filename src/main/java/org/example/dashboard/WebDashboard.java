@@ -25,6 +25,7 @@ public class WebDashboard {
     private final int port;
     private final DashboardManager dashboardManager;
     private final ConfigManager configManager;
+    private org.example.ApplicationManager applicationManager;
     private final Gson gson;
     private HttpServer server;
 
@@ -38,6 +39,10 @@ public class WebDashboard {
         this.gson = new Gson();
     }
 
+    public void setApplicationManager(org.example.ApplicationManager applicationManager) {
+        this.applicationManager = applicationManager;
+    }
+
     public void start() throws IOException {
         server = HttpServer.create(new InetSocketAddress(port), 0);
         
@@ -45,6 +50,7 @@ public class WebDashboard {
         server.createContext("/api/instances", new InstancesHandler());
         server.createContext("/api/stats", new StatsHandler());
         server.createContext("/api/config", new ConfigHandler());
+        server.createContext("/api/config/apply", new ConfigApplyHandler());
         
         // Pages
         server.createContext("/settings", new SettingsPageHandler());
@@ -188,6 +194,59 @@ public class WebDashboard {
                 }
             } else {
                 exchange.sendResponseHeaders(405, -1);
+            }
+        }
+    }
+
+    /**
+     * Handler for applying configuration without restart
+     */
+    private class ConfigApplyHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                return;
+            }
+
+            try {
+                if (applicationManager == null) {
+                    throw new RuntimeException("ApplicationManager not initialized");
+                }
+
+                // Restart scanner with new configuration
+                applicationManager.restartScanner();
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", true);
+                result.put("message", "Configuration applied successfully! Scanner restarted with new settings.");
+
+                String json = gson.toJson(result);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, response.length);
+
+                OutputStream os = exchange.getResponseBody();
+                os.write(response);
+                os.close();
+
+            } catch (Exception e) {
+                logger.error("Failed to apply configuration", e);
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", false);
+                result.put("message", "Failed to apply configuration: " + e.getMessage());
+
+                String json = gson.toJson(result);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(500, response.length);
+
+                OutputStream os = exchange.getResponseBody();
+                os.write(response);
+                os.close();
             }
         }
     }
@@ -766,7 +825,10 @@ public class WebDashboard {
                 "            </div>\n" +
                 "        </div>\n" +
                 "\n" +
-                "        <button class='save-btn' onclick='saveSettings()'>💾 Save Settings</button>\n" +
+                "        <div style='display: flex; gap: 10px;'>\n" +
+                "            <button class='save-btn' onclick='saveSettings()' style='flex: 1;'>💾 Save Settings</button>\n" +
+                "            <button class='save-btn' onclick='applyNow()' style='flex: 1; background: #10b981;'>⚡ Apply Now</button>\n" +
+                "        </div>\n" +
                 "    </div>\n" +
                 "\n" +
                 "    <script>\n" +
@@ -841,6 +903,46 @@ public class WebDashboard {
                 "                }\n" +
                 "            } catch (error) {\n" +
                 "                showMessage('Failed to save settings: ' + error.message, 'error');\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        async function applyNow() {\n" +
+                "            const config = {\n" +
+                "                'network.ip.range.start': document.getElementById('ipStart').value.trim(),\n" +
+                "                'network.ip.range.end': document.getElementById('ipEnd').value.trim(),\n" +
+                "                'network.port': document.getElementById('port').value.trim(),\n" +
+                "                'check.paths': endpoints.join(', ')\n" +
+                "            };\n" +
+                "\n" +
+                "            try {\n" +
+                "                // First save the configuration\n" +
+                "                const saveResponse = await fetch('/api/config', {\n" +
+                "                    method: 'POST',\n" +
+                "                    headers: { 'Content-Type': 'application/json' },\n" +
+                "                    body: JSON.stringify(config)\n" +
+                "                });\n" +
+                "                \n" +
+                "                const saveResult = await saveResponse.json();\n" +
+                "                if (!saveResult.success) {\n" +
+                "                    showMessage(saveResult.message, 'error');\n" +
+                "                    return;\n" +
+                "                }\n" +
+                "                \n" +
+                "                // Then apply it immediately\n" +
+                "                showMessage('Applying configuration...', 'success');\n" +
+                "                \n" +
+                "                const applyResponse = await fetch('/api/config/apply', {\n" +
+                "                    method: 'POST'\n" +
+                "                });\n" +
+                "                \n" +
+                "                const applyResult = await applyResponse.json();\n" +
+                "                if (applyResult.success) {\n" +
+                "                    showMessage(applyResult.message, 'success');\n" +
+                "                } else {\n" +
+                "                    showMessage(applyResult.message, 'error');\n" +
+                "                }\n" +
+                "            } catch (error) {\n" +
+                "                showMessage('Failed to apply settings: ' + error.message, 'error');\n" +
                 "            }\n" +
                 "        }\n" +
                 "\n" +
