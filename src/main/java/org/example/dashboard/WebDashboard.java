@@ -608,6 +608,49 @@ public class WebDashboard {
                 "            margin-bottom: 10px;\n" +
                 "            background: #e5e7eb;\n" +
                 "        }\n" +
+                "        .view-toggle {\n" +
+                "            display: inline-flex;\n" +
+                "            align-items: center;\n" +
+                "            gap: 8px;\n" +
+                "            margin-right: 10px;\n" +
+                "            padding: 8px 14px;\n" +
+                "            border-radius: 10px;\n" +
+                "            border: 1px solid #e5e7eb;\n" +
+                "            background: white;\n" +
+                "            color: #374151;\n" +
+                "            font-weight: 600;\n" +
+                "            cursor: pointer;\n" +
+                "            user-select: none;\n" +
+                "        }\n" +
+                "        .instances-table {\n" +
+                "            width: 100%;\n" +
+                "            border-collapse: collapse;\n" +
+                "            margin-top: 10px;\n" +
+                "        }\n" +
+                "        .instances-table th {\n" +
+                "            background: #f9fafb;\n" +
+                "            padding: 10px;\n" +
+                "            text-align: left;\n" +
+                "            font-size: 12px;\n" +
+                "            color: #6b7280;\n" +
+                "            font-weight: 700;\n" +
+                "            text-transform: uppercase;\n" +
+                "        }\n" +
+                "        .instances-table td {\n" +
+                "            padding: 12px 10px;\n" +
+                "            border-top: 1px solid #e5e7eb;\n" +
+                "            font-size: 14px;\n" +
+                "            vertical-align: top;\n" +
+                "        }\n" +
+                "        .paths-summary {\n" +
+                "            display: flex;\n" +
+                "            flex-wrap: wrap;\n" +
+                "            gap: 6px;\n" +
+                "        }\n" +
+                "        .paths-summary .status-badge {\n" +
+                "            font-size: 11px;\n" +
+                "            padding: 4px 8px;\n" +
+                "        }\n" +
                 "    </style>\n" +
                 "</head>\n" +
                 "<body>\n" +
@@ -617,6 +660,7 @@ public class WebDashboard {
                 "                <h1>🖥️ Instance Dashboard</h1>\n" +
                 "                <div>\n" +
                 "                    <a href='/settings' class=\"settings-btn\">⚙️ Settings</a>\n" +
+                "                    <button class=\"view-toggle\" id=\"viewToggle\" onclick=\"toggleViewMode()\">View: Cards</button>\n" +
                 "                    <button class=\"refresh-btn\" onclick=\"triggerScan()\" id=\"scanBtn\">🔍 Scan</button>\n" +
                 "                </div>\n" +
                 "            </div>\n" +
@@ -652,6 +696,8 @@ public class WebDashboard {
                 "    <script>\n" +
                 "        let pathsWithOpenButton = [];\n" +
                 "        let scanPollInterval = null;\n" +
+                "        let viewMode = (localStorage.getItem('viewMode') || 'cards');\n" +
+                "        let lastInstances = [];\n" +
                 "\n" +
                 "        const STATUS_LABELS = {\n" +
                 "            'UNKNOWN': 'Unknown',\n" +
@@ -668,65 +714,157 @@ public class WebDashboard {
                 "            return STATUS_LABELS[status] || status;\n" +
                 "        }\n" +
                 "\n" +
+                "        function applyViewModeUi() {\n" +
+                "            const toggle = document.getElementById('viewToggle');\n" +
+                "            if (!toggle) return;\n" +
+                "            toggle.textContent = (viewMode === 'table') ? 'View: Table' : 'View: Cards';\n" +
+                "        }\n" +
+                "\n" +
+                "        function toggleViewMode() {\n" +
+                "            viewMode = (viewMode === 'table') ? 'cards' : 'table';\n" +
+                "            localStorage.setItem('viewMode', viewMode);\n" +
+                "            applyViewModeUi();\n" +
+                "            renderInstances(lastInstances);\n" +
+                "        }\n" +
+                "\n" +
+                "        function statusRank(status) {\n" +
+                "            switch (status) {\n" +
+                "                case 'API_HEALTHY': return 0;\n" +
+                "                case 'HTTP_OK': return 1;\n" +
+                "                case 'API_DEGRADED': return 2;\n" +
+                "                case 'PORT_OPEN': return 3;\n" +
+                "                case 'API_ERROR': return 4;\n" +
+                "                case 'TIMEOUT': return 5;\n" +
+                "                case 'UNREACHABLE': return 6;\n" +
+                "                case 'UNKNOWN': return 7;\n" +
+                "                default: return 99;\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        function sortInstancesForReadability(instances) {\n" +
+                "            return (instances || []).slice().sort((a, b) => {\n" +
+                "                const ra = statusRank(a.status);\n" +
+                "                const rb = statusRank(b.status);\n" +
+                "                if (ra !== rb) return ra - rb;\n" +
+                "                const aa = (a.ipAddress || '') + ':' + (a.port || '');\n" +
+                "                const bb = (b.ipAddress || '') + ':' + (b.port || '');\n" +
+                "                return aa.localeCompare(bb);\n" +
+                "            });\n" +
+                "        }\n" +
+                "\n" +
+                "        function renderInstances(instances) {\n" +
+                "            const container = document.getElementById('instances');\n" +
+                "            if (!container) return;\n" +
+                "            lastInstances = sortInstancesForReadability(instances || []);\n" +
+                "\n" +
+                "            if (lastInstances.length === 0) {\n" +
+                "                container.innerHTML = '<div class=\"loading\">No instances found</div>';\n" +
+                "                return;\n" +
+                "            }\n" +
+                "\n" +
+                "            if (viewMode === 'table') {\n" +
+                "                container.innerHTML = renderInstancesTable(lastInstances);\n" +
+                "            } else {\n" +
+                "                container.innerHTML = renderInstancesCards(lastInstances);\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        function renderInstancesTable(instances) {\n" +
+                "            let html = '<table class=\"instances-table\">';\n" +
+                "            html += '<thead><tr><th>Address</th><th>Status</th><th>Paths</th><th>Metadata</th></tr></thead><tbody>';\n" +
+                "            for (const instance of instances) {\n" +
+                "                const metadata = instance.metadata || {};\n" +
+                "                const paths = instance.pathResults || {};\n" +
+                "\n" +
+                "                const addr = `${instance.ipAddress}:${instance.port}`;\n" +
+                "                const statusHtml = `<span class=\"status-badge status-${instance.status}\">${formatStatusLabel(instance.status)}</span>`;\n" +
+                "\n" +
+                "                let pathsHtml = '<div class=\"paths-summary\">';\n" +
+                "                const entries = Object.entries(paths);\n" +
+                "                if (entries.length === 0) {\n" +
+                "                    pathsHtml += '<span style=\"color:#9ca3af\">No paths</span>';\n" +
+                "                } else {\n" +
+                "                    for (const [path, result] of entries) {\n" +
+                "                        const label = path;\n" +
+                "                        const badge = `<span class=\"status-badge status-${result.status}\" title=\"${label}\">${label} · ${formatStatusLabel(result.status)}</span>`;\n" +
+                "                        pathsHtml += badge;\n" +
+                "                    }\n" +
+                "                }\n" +
+                "                pathsHtml += '</div>';\n" +
+                "\n" +
+                "                let metaHtml = '';\n" +
+                "                if (metadata.branch) metaHtml += `🌿 <strong>${metadata.branch}</strong> `;\n" +
+                "                if (metadata.version) metaHtml += `📦 <strong>${metadata.version}</strong> `;\n" +
+                "                if (metadata.commit) metaHtml += `💾 <strong>${metadata.commit}</strong>`;\n" +
+                "                if (!metaHtml) metaHtml = '<span style=\"color:#9ca3af\">-</span>';\n" +
+                "\n" +
+                "                html += '<tr>';\n" +
+                "                html += `<td><strong>${addr}</strong></td>`;\n" +
+                "                html += `<td>${statusHtml}</td>`;\n" +
+                "                html += `<td>${pathsHtml}</td>`;\n" +
+                "                html += `<td>${metaHtml}</td>`;\n" +
+                "                html += '</tr>';\n" +
+                "            }\n" +
+                "            html += '</tbody></table>';\n" +
+                "            return html;\n" +
+                "        }\n" +
+                "\n" +
+                "        function renderInstancesCards(instances) {\n" +
+                "            return instances.map(instance => {\n" +
+                "                const metadata = instance.metadata || {};\n" +
+                "                const paths = instance.pathResults || {};\n" +
+                "\n" +
+                "                let metadataHtml = '';\n" +
+                "                if (metadata.branch || metadata.version || metadata.commit) {\n" +
+                "                    metadataHtml = '<div class=\"metadata\">';\n" +
+                "                    if (metadata.branch) metadataHtml += '<span>🌿 Branch: <strong>' + metadata.branch + '</strong></span>';\n" +
+                "                    if (metadata.version) metadataHtml += '<span>📦 Version: <strong>' + metadata.version + '</strong></span>';\n" +
+                "                    if (metadata.commit) metadataHtml += '<span>💾 Commit: <strong>' + metadata.commit + '</strong></span>';\n" +
+                "                    metadataHtml += '</div>';\n" +
+                "                }\n" +
+                "\n" +
+                "                let pathsHtml = '';\n" +
+                "                if (Object.keys(paths).length > 0) {\n" +
+                "                    pathsHtml = '<details><summary>📋 Scan Details (' + Object.keys(paths).length + ' paths)</summary>';\n" +
+                "                    pathsHtml += '<table class=\"paths-table\"><thead><tr><th>Path</th><th>Status</th><th>HTTP Code</th><th>Response Time</th><th>Action</th></tr></thead><tbody>';\n" +
+                "                    for (const [path, result] of Object.entries(paths)) {\n" +
+                "                        const url = 'http://' + instance.ipAddress + ':' + instance.port + path;\n" +
+                "                        const showOpenButton = pathsWithOpenButton.includes(path);\n" +
+                "                        pathsHtml += '<tr>';\n" +
+                "                        pathsHtml += '<td><a href=\"' + url + '\" target=\"_blank\" class=\"path-link\">' + path + '</a></td>';\n" +
+                "                        pathsHtml += '<td><span class=\"status-badge status-' + result.status + '\">' + formatStatusLabel(result.status) + '</span></td>';\n" +
+                "                        pathsHtml += '<td>' + (result.httpStatusCode || '-') + '</td>';\n" +
+                "                        pathsHtml += '<td>' + (result.responseTimeMs >= 0 ? result.responseTimeMs + 'ms' : 'N/A') + '</td>';\n" +
+                "                        pathsHtml += '<td>';\n" +
+                "                        if (showOpenButton) {\n" +
+                "                            pathsHtml += '<button class=\"open-btn\" onclick=\"window.open(\\'' + url + '\\', \\\'_blank\\')\">Open</button>';\n" +
+                "                        } else {\n" +
+                "                            pathsHtml += '-';\n" +
+                "                        }\n" +
+                "                        pathsHtml += '</td>';\n" +
+                "                        pathsHtml += '</tr>';\n" +
+                "                    }\n" +
+                "                    pathsHtml += '</tbody></table></details>';\n" +
+                "                }\n" +
+                "\n" +
+                "                return `\n" +
+                "                    <div class=\"instance-card\">\n" +
+                "                        <div class=\"instance-header\">\n" +
+                "                            <div class=\"instance-title\">${instance.ipAddress}:${instance.port}</div>\n" +
+                "                            <span class=\"status-badge status-${instance.status}\">${formatStatusLabel(instance.status)}</span>\n" +
+                "                        </div>\n" +
+                "                        ${metadataHtml}\n" +
+                "                        ${pathsHtml}\n" +
+                "                    </div>\n" +
+                "                `;\n" +
+                "            }).join('');\n" +
+                "        }\n" +
+                "\n" +
                 "        function updateScanUiFromStats(stats) {\n" +
                 "            const btn = document.getElementById('scanBtn');\n" +
                 "            const statusEl = document.getElementById('scanStatus');\n" +
                 "            const progress = stats && stats.scanProgress ? stats.scanProgress : null;\n" +
-                "\n" +
-                "            if (progress && progress.inProgress) {\n" +
-                "                const total = progress.total || 0;\n" +
-                "                const completed = progress.completed || 0;\n" +
-                "                const percent = total > 0 ? Math.floor((completed * 100) / total) : 0;\n" +
-                "                const current = progress.currentAddress ? (' | ' + progress.currentAddress) : '';\n" +
-                "                statusEl.textContent = `Scanning: ${completed}/${total} (${percent}%)${current}`;\n" +
-                "                statusEl.style.color = '#f59e0b';\n" +
-                "                btn.disabled = true;\n" +
-                "                btn.style.opacity = '0.5';\n" +
-                "                return;\n" +
-                "            }\n" +
-                "\n" +
-                "            // Not in progress\n" +
-                "            if (scanPollInterval) {\n" +
-                "                clearInterval(scanPollInterval);\n" +
-                "                scanPollInterval = null;\n" +
-                "            }\n" +
-                "            btn.disabled = false;\n" +
-                "            btn.style.opacity = '1';\n" +
-                "            if (statusEl.textContent && statusEl.textContent.startsWith('Scanning:')) {\n" +
-                "                statusEl.textContent = 'Scan finished';\n" +
-                "                statusEl.style.color = '#10b981';\n" +
-                "                setTimeout(() => { statusEl.textContent = ''; }, 4000);\n" +
-                "            }\n" +
-                "        }\n" +
-                "        \n" +
-                "        function fetchStats() {\n" +
-                "            fetch('/api/stats')\n" +
-                "                .then(response => response.json())\n" +
-                "                .then(stats => {\n" +
-                "                    document.getElementById('totalInstances').textContent = stats.total;\n" +
-                "                    document.getElementById('httpOkInstances').textContent = stats.httpOk;\n" +
-                "                    document.getElementById('degradedInstances').textContent = stats.degraded;\n" +
-                "                    document.getElementById('errorInstances').textContent = stats.errors;\n" +
-                "                    updateScanUiFromStats(stats);\n" +
-                "                    \n" +
-                "                    // Store paths with Open button enabled\n" +
-                "                    if (stats.pathsWithOpenButton) {\n" +
-                "                        pathsWithOpenButton = stats.pathsWithOpenButton.split(',').map(s => s.trim()).filter(s => s);\n" +
-                "                    }\n" +
-                "                    \n" +
-                "                    if (stats.lastUpdate && stats.lastUpdate > 0) {\n" +
-                "                        const date = new Date(stats.lastUpdate);\n" +
-                "                        document.getElementById('lastUpdate').textContent = 'Last Update: ' + date.toLocaleString();\n" +
-                "                    } else {\n" +
-                "                        document.getElementById('lastUpdate').textContent = 'No scans yet';\n" +
-                "                    }\n" +
-                "                })\n" +
-                "                .catch(err => console.error('Error fetching stats:', err));\n" +
-                "        }\n" +
-                "\n" +
-                "        function fetchInstances() {\n" +
-                "            fetch('/api/instances')\n" +
-                "                .then(response => response.json())\n" +
+                "                    renderInstances(instances);\n" +
                 "                .then(instances => {\n" +
                 "                    const container = document.getElementById('instances');\n" +
                 "                    \n" +
@@ -832,6 +970,7 @@ public class WebDashboard {
                 "        }\n" +
                 "\n" +
                 "        // Initial load\n" +
+                "        applyViewModeUi();\n" +
                 "        refresh();\n" +
                 "    </script>\n" +
                 "</body>\n" +

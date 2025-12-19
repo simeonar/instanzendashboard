@@ -23,6 +23,14 @@
 #### 4. ✅ Better status readability
 - Dashboard now displays friendly status labels instead of raw enum constants.
 
+#### 5. ✅ Toggle view mode (Cards ↔ Table)
+- **Added**: A view toggle button on the dashboard header.
+- **Modes**:
+  - **Cards**: Current collapsible per-instance card view.
+  - **Table**: Flat list for fast scanning.
+- **Persistence**: View mode is stored in browser `localStorage`.
+- **Readability**: Instances are sorted by status severity (healthy first, unreachable last).
+
 ### Files
 - Backend: `src/main/java/org/example/config/ConfigManager.java`, `src/main/java/org/example/scanner/NetworkScanner.java`, `src/main/java/org/example/scanner/HealthChecker.java`, `src/main/java/org/example/ApplicationManager.java`
 - Web UI: `src/main/java/org/example/dashboard/WebDashboard.java`
