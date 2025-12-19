@@ -131,6 +131,15 @@ public class WebDashboard {
     private void openUrlInBrowser(String browserChoice, String url) throws Exception {
         java.net.URI uri = new java.net.URI(url);
 
+        String scheme = uri.getScheme();
+        if (scheme == null) {
+            throw new IllegalArgumentException("URL scheme is missing");
+        }
+        String schemeLower = scheme.toLowerCase(java.util.Locale.ROOT);
+        if (!"http".equals(schemeLower) && !"https".equals(schemeLower)) {
+            throw new IllegalArgumentException("Only http/https URLs are allowed");
+        }
+
         String normalized = (browserChoice == null ? "default" : browserChoice.trim().toLowerCase(java.util.Locale.ROOT));
         if (normalized.isEmpty() || "default".equals(normalized)) {
             java.awt.Desktop.getDesktop().browse(uri);

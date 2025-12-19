@@ -51,6 +51,7 @@
 #### 9. ✅ Open in selected browser (server-side)
 - **Problem**: `window.open()` always uses the client default browser and cannot respect `browser.choice`.
 - **Fix**: Added `/api/open` endpoint that opens the URL on the **server machine** using `browser.choice` (default/chrome/firefox/edge), with a safe fallback to `Desktop.browse()`.
+- **Safety**: `/api/open` allows only `http`/`https` URLs.
 - **UI**: Dashboard "Open" button now calls `/api/open` with fallback to `window.open` if it fails.
 - **Files**: `src/main/java/org/example/dashboard/WebDashboard.java`, `src/main/java/org/example/config/ConfigManager.java`
 
