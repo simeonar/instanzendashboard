@@ -36,6 +36,24 @@
 - **Scope**: Styling only (no functional changes).
 - **File**: `src/main/java/org/example/dashboard/WebDashboard.java`
 
+#### 7. ✅ Fix broken "Scan" button (dashboard JS)
+- **Problem**: Dashboard JavaScript contained a corrupted function block, causing a syntax error so handlers (including `triggerScan()`) were not available.
+- **Fix**: Restored `updateScanUiFromStats()` and re-added missing `fetchStats()` / `fetchInstances()` functions.
+- **Impact**: "Scan" button works again and stats/instances refresh correctly.
+- **File**: `src/main/java/org/example/dashboard/WebDashboard.java`
+
+#### 8. ✅ Fix Settings endpoints corruption (`[object Object]`)
+- **Problem**: Settings page stored `check.paths` using `endpoints.join(', ')` where `endpoints` is an array of objects, producing `[object Object]` in config and breaking add/remove/display.
+- **Fix**: Added path normalization/deduplication and serialize using `endpoints.map(e => e.path).join(', ')`.
+- **Also**: Auto-open toggle now re-renders immediately.
+- **File**: `src/main/java/org/example/dashboard/WebDashboard.java`
+
+#### 9. ✅ Open in selected browser (server-side)
+- **Problem**: `window.open()` always uses the client default browser and cannot respect `browser.choice`.
+- **Fix**: Added `/api/open` endpoint that opens the URL on the **server machine** using `browser.choice` (default/chrome/firefox/edge), with a safe fallback to `Desktop.browse()`.
+- **UI**: Dashboard "Open" button now calls `/api/open` with fallback to `window.open` if it fails.
+- **Files**: `src/main/java/org/example/dashboard/WebDashboard.java`, `src/main/java/org/example/config/ConfigManager.java`
+
 ### Files
 - Backend: `src/main/java/org/example/config/ConfigManager.java`, `src/main/java/org/example/scanner/NetworkScanner.java`, `src/main/java/org/example/scanner/HealthChecker.java`, `src/main/java/org/example/ApplicationManager.java`
 - Web UI: `src/main/java/org/example/dashboard/WebDashboard.java`

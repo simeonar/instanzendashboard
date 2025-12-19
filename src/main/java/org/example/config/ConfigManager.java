@@ -174,9 +174,10 @@ public class ConfigManager {
         for (String p : raw) {
             if (p == null) continue;
             String trimmed = p.trim();
-            if (!trimmed.isEmpty()) {
-                cleaned.add(trimmed);
-            }
+            if (trimmed.isEmpty()) continue;
+            if ("[object Object]".equals(trimmed)) continue;
+            if (!trimmed.startsWith("/")) trimmed = "/" + trimmed;
+            cleaned.add(trimmed);
         }
         return cleaned.toArray(new String[0]);
     }

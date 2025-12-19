@@ -9,7 +9,9 @@ import org.example.model.Instance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +54,7 @@ public class WebDashboard {
         server.createContext("/api/config", new ConfigHandler());
         server.createContext("/api/config/apply", new ConfigApplyHandler());
         server.createContext("/api/scan", new ScanHandler());
+        server.createContext("/api/open", new OpenInBrowserHandler());
         
         // Pages
         server.createContext("/settings", new SettingsPageHandler());
@@ -61,6 +64,100 @@ public class WebDashboard {
         server.start();
         
         logger.info("Web dashboard started at http://localhost:{}", port);
+    }
+
+    private static String readBody(InputStream input) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            bos.write(buffer, 0, read);
+        }
+        return new String(bos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static class OpenRequest {
+        String url;
+    }
+
+    private class OpenInBrowserHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                return;
+            }
+
+            try {
+                String body = readBody(exchange.getRequestBody());
+                OpenRequest req = gson.fromJson(body, OpenRequest.class);
+                if (req == null || req.url == null || req.url.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Missing url");
+                }
+
+                String url = req.url.trim();
+                String browserChoice = configManager.getProperty("browser.choice", "default");
+                openUrlInBrowser(browserChoice, url);
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", true);
+                result.put("message", "Opened");
+
+                String json = gson.toJson(result);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, response.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(response);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to open URL", e);
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", false);
+                result.put("message", "Failed to open URL: " + e.getMessage());
+
+                String json = gson.toJson(result);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                byte[] response = json.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(500, response.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(response);
+                }
+            }
+        }
+    }
+
+    private void openUrlInBrowser(String browserChoice, String url) throws Exception {
+        java.net.URI uri = new java.net.URI(url);
+
+        String normalized = (browserChoice == null ? "default" : browserChoice.trim().toLowerCase(java.util.Locale.ROOT));
+        if (normalized.isEmpty() || "default".equals(normalized)) {
+            java.awt.Desktop.getDesktop().browse(uri);
+            return;
+        }
+
+        boolean isWindows = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win");
+        String cmd = null;
+        if ("chrome".equals(normalized)) cmd = "chrome";
+        if ("firefox".equals(normalized)) cmd = "firefox";
+        if ("edge".equals(normalized)) cmd = "msedge";
+
+        if (isWindows && cmd != null) {
+            try {
+                new ProcessBuilder(cmd, url).start();
+                return;
+            } catch (IOException ignored) {
+                try {
+                    new ProcessBuilder("cmd", "/c", "start", "", cmd, url).start();
+                    return;
+                } catch (IOException ignored2) {
+                    // fall through
+                }
+            }
+        }
+
+        java.awt.Desktop.getDesktop().browse(uri);
     }
 
     public void stop() {
@@ -841,7 +938,7 @@ public class WebDashboard {
                 "                        pathsHtml += '<td>' + (result.responseTimeMs >= 0 ? result.responseTimeMs + 'ms' : 'N/A') + '</td>';\n" +
                 "                        pathsHtml += '<td>';\n" +
                 "                        if (showOpenButton) {\n" +
-                "                            pathsHtml += '<button class=\"open-btn\" onclick=\"window.open(\\'' + url + '\\', \\\'_blank\\')\">Open</button>';\n" +
+                "                            pathsHtml += '<button class=\"open-btn\" onclick=\"openInBrowser(\\'' + url + '\\')\">Open</button>';\n" +
                 "                        } else {\n" +
                 "                            pathsHtml += '-';\n" +
                 "                        }\n" +
@@ -867,74 +964,101 @@ public class WebDashboard {
                 "        function updateScanUiFromStats(stats) {\n" +
                 "            const btn = document.getElementById('scanBtn');\n" +
                 "            const statusEl = document.getElementById('scanStatus');\n" +
+                "            if (!btn || !statusEl) return;\n" +
+                "            const scanning = !!(stats && stats.scanning);\n" +
                 "            const progress = stats && stats.scanProgress ? stats.scanProgress : null;\n" +
-                "                    renderInstances(instances);\n" +
-                "                .then(instances => {\n" +
-                "                    const container = document.getElementById('instances');\n" +
-                "                    \n" +
-                "                    if (instances.length === 0) {\n" +
-                "                        container.innerHTML = '<div class=\"loading\">No instances found</div>';\n" +
-                "                        return;\n" +
+                "\n" +
+                "            if (scanning) {\n" +
+                "                const total = progress && progress.total ? progress.total : 0;\n" +
+                "                const completed = progress && progress.completed ? progress.completed : 0;\n" +
+                "                const current = progress && progress.currentAddress ? progress.currentAddress : '';\n" +
+                "                const percent = total > 0 ? Math.floor((completed * 100) / total) : 0;\n" +
+                "                let text = total > 0 ? (`Scanning: ${completed}/${total} (${percent}%)`) : 'Scanning...';\n" +
+                "                if (current) text += ' | ' + current;\n" +
+                "                statusEl.textContent = text;\n" +
+                "                statusEl.style.color = '#f59e0b';\n" +
+                "                btn.disabled = true;\n" +
+                "                btn.style.opacity = '0.5';\n" +
+                "                return;\n" +
+                "            }\n" +
+                "\n" +
+                "            if (progress && progress.total && progress.completed >= progress.total) {\n" +
+                "                statusEl.textContent = 'Scan completed';\n" +
+                "                statusEl.style.color = '#86efac';\n" +
+                "            }\n" +
+                "\n" +
+                "            btn.disabled = false;\n" +
+                "            btn.style.opacity = '1';\n" +
+                "\n" +
+                "            if (scanPollInterval) {\n" +
+                "                clearInterval(scanPollInterval);\n" +
+                "                scanPollInterval = null;\n" +
+                "            }\n" +
+                "        }\n" +
+                "\n" +
+                "        function fetchStats() {\n" +
+                "            fetch('/api/stats')\n" +
+                "                .then(r => r.json())\n" +
+                "                .then(stats => {\n" +
+                "                    document.getElementById('totalInstances').textContent = stats.total || 0;\n" +
+                "                    document.getElementById('httpOkInstances').textContent = stats.httpOk || 0;\n" +
+                "                    document.getElementById('degradedInstances').textContent = stats.degraded || 0;\n" +
+                "                    document.getElementById('errorInstances').textContent = stats.errors || 0;\n" +
+                "\n" +
+                "                    if (stats.pathsWithOpenButton) {\n" +
+                "                        pathsWithOpenButton = stats.pathsWithOpenButton.split(',').map(s => s.trim()).filter(s => s);\n" +
+                "                    } else {\n" +
+                "                        pathsWithOpenButton = [];\n" +
                 "                    }\n" +
-                "                    \n" +
-                "                    container.innerHTML = instances.map(instance => {\n" +
-                "                        const metadata = instance.metadata || {};\n" +
-                "                        const paths = instance.pathResults || {};\n" +
-                "                        \n" +
-                "                        let metadataHtml = '';\n" +
-                "                        if (metadata.branch || metadata.version || metadata.commit) {\n" +
-                "                            metadataHtml = '<div class=\"metadata\">';\n" +
-                "                            if (metadata.branch) metadataHtml += '<span>🌿 Branch: <strong>' + metadata.branch + '</strong></span>';\n" +
-                "                            if (metadata.version) metadataHtml += '<span>📦 Version: <strong>' + metadata.version + '</strong></span>';\n" +
-                "                            if (metadata.commit) metadataHtml += '<span>💾 Commit: <strong>' + metadata.commit + '</strong></span>';\n" +
-                "                            metadataHtml += '</div>';\n" +
+                "\n" +
+                "                    const lastUpdateEl = document.getElementById('lastUpdate');\n" +
+                "                    if (lastUpdateEl) {\n" +
+                "                        if (stats.lastUpdate && stats.lastUpdate > 0) {\n" +
+                "                            lastUpdateEl.textContent = 'Last update: ' + new Date(stats.lastUpdate).toLocaleString();\n" +
+                "                        } else {\n" +
+                "                            lastUpdateEl.textContent = 'No scans yet';\n" +
                 "                        }\n" +
-                "                        \n" +
-                "                        let pathsHtml = '';\n" +
-                "                        if (Object.keys(paths).length > 0) {\n" +
-                "                            pathsHtml = '<details><summary>📋 Scan Details (' + Object.keys(paths).length + ' paths)</summary>';\n" +
-                "                            pathsHtml += '<table class=\"paths-table\"><thead><tr><th>Path</th><th>Status</th><th>HTTP Code</th><th>Response Time</th><th>Action</th></tr></thead><tbody>';\n" +
-                "                            for (const [path, result] of Object.entries(paths)) {\n" +
-                "                                const url = 'http://' + instance.ipAddress + ':' + instance.port + path;\n" +
-                "                                const showOpenButton = pathsWithOpenButton.includes(path);\n" +
-                "                                pathsHtml += '<tr>';\n" +
-                "                                pathsHtml += '<td><a href=\"' + url + '\" target=\"_blank\" class=\"path-link\">' + path + '</a></td>';\n" +
-                "                                pathsHtml += '<td><span class=\"status-badge status-' + result.status + '\">' + formatStatusLabel(result.status) + '</span></td>';\n" +
-                "                                pathsHtml += '<td>' + (result.httpStatusCode || '-') + '</td>';\n" +
-                "                                pathsHtml += '<td>' + (result.responseTimeMs >= 0 ? result.responseTimeMs + 'ms' : 'N/A') + '</td>';\n" +
-                "                                pathsHtml += '<td>';\n" +
-                "                                if (showOpenButton) {\n" +
-                "                                    pathsHtml += '<button class=\"open-btn\" onclick=\"window.open(\\'' + url + '\\', \\'_blank\\')\">Open</button>';\n" +
-                "                                } else {\n" +
-                "                                    pathsHtml += '-';\n" +
-                "                                }\n" +
-                "                                pathsHtml += '</td>';\n" +
-                "                                pathsHtml += '</tr>';\n" +
-                "                            }\n" +
-                "                            pathsHtml += '</tbody></table></details>';\n" +
-                "                        }\n" +
-                "                        \n" +
-                "                        return `\n" +
-                "                            <div class=\"instance-card\">\n" +
-                "                                <div class=\"instance-header\">\n" +
-                "                                    <div class=\"instance-title\">${instance.ipAddress}:${instance.port}</div>\n" +
-                "                                    <span class=\"status-badge status-${instance.status}\">${formatStatusLabel(instance.status)}</span>\n" +
-                "                                </div>\n" +
-                "                                ${metadataHtml}\n" +
-                "                                ${pathsHtml}\n" +
-                "                            </div>\n" +
-                "                        `;\n" +
-                "                    }).join('');\n" +
+                "                    }\n" +
+                "\n" +
+                "                    updateScanUiFromStats(stats);\n" +
+                "                })\n" +
+                "                .catch(err => {\n" +
+                "                    console.error('Error fetching stats:', err);\n" +
+                "                });\n" +
+                "        }\n" +
+                "\n" +
+                "        function fetchInstances() {\n" +
+                "            fetch('/api/instances')\n" +
+                "                .then(r => r.json())\n" +
+                "                .then(instances => {\n" +
+                "                    renderInstances(instances);\n" +
                 "                })\n" +
                 "                .catch(err => {\n" +
                 "                    console.error('Error fetching instances:', err);\n" +
-                "                    document.getElementById('instances').innerHTML = '<div class=\"loading\">Error loading instances</div>';\n" +
+                "                    const container = document.getElementById('instances');\n" +
+                "                    if (container) container.innerHTML = '<div class=\"loading\">Error loading instances</div>';\n" +
                 "                });\n" +
                 "        }\n" +
                 "\n" +
                 "        function refresh() {\n" +
                 "            fetchStats();\n" +
                 "            fetchInstances();\n" +
+                "        }\n" +
+                "\n" +
+                "        function openInBrowser(url) {\n" +
+                "            // Note: This opens a browser on the SERVER machine.\n" +
+                "            fetch('/api/open', {\n" +
+                "                method: 'POST',\n" +
+                "                headers: { 'Content-Type': 'application/json' },\n" +
+                "                body: JSON.stringify({ url: url })\n" +
+                "            })\n" +
+                "            .then(r => r.json())\n" +
+                "            .then(res => {\n" +
+                "                if (!res || !res.success) {\n" +
+                "                    window.open(url, '_blank');\n" +
+                "                }\n" +
+                "            })\n" +
+                "            .catch(() => window.open(url, '_blank'));\n" +
                 "        }\n" +
                 "\n" +
                 "        function triggerScan() {\n" +
@@ -1236,6 +1360,34 @@ public class WebDashboard {
                 "    <script>\n" +
                 "        let endpoints = [];\n" +
                 "\n" +
+                "        function normalizePath(p) {\n" +
+                "            if (p === null || p === undefined) return null;\n" +
+                "            let s = String(p).trim();\n" +
+                "            if (!s) return null;\n" +
+                "            if (s === '[object Object]') return null;\n" +
+                "            if (!s.startsWith('/')) s = '/' + s;\n" +
+                "            return s;\n" +
+                "        }\n" +
+                "\n" +
+                "        function normalizeEndpoints(list) {\n" +
+                "            const seen = {};\n" +
+                "            const out = [];\n" +
+                "            (list || []).forEach(item => {\n" +
+                "                const obj = (typeof item === 'string') ? { path: item, autoOpen: false } : item;\n" +
+                "                const path = normalizePath(obj && obj.path);\n" +
+                "                if (!path) return;\n" +
+                "                const autoOpen = !!(obj && obj.autoOpen);\n" +
+                "                if (seen[path]) {\n" +
+                "                    const existing = out.find(e => e.path === path);\n" +
+                "                    if (existing) existing.autoOpen = existing.autoOpen || autoOpen;\n" +
+                "                    return;\n" +
+                "                }\n" +
+                "                seen[path] = true;\n" +
+                "                out.push({ path: path, autoOpen: autoOpen });\n" +
+                "            });\n" +
+                "            return out;\n" +
+                "        }\n" +
+                "\n" +
                 "        async function loadConfig() {\n" +
                 "            try {\n" +
                 "                const response = await fetch('/api/config');\n" +
@@ -1250,12 +1402,12 @@ public class WebDashboard {
                 "                const autoOpenPaths = config['check.paths.autoopen'] || '';\n" +
                 "                \n" +
                 "                const paths = checkPaths ? checkPaths.split(',').map(s => s.trim()).filter(s => s) : [];\n" +
-                "                const autoOpens = autoOpenPaths ? autoOpenPaths.split(',').map(s => s.trim()) : [];\n" +
+                "                const autoOpens = autoOpenPaths ? autoOpenPaths.split(',').map(s => s.trim()).filter(s => s) : [];\n" +
                 "                \n" +
-                "                endpoints = paths.map(path => ({\n" +
+                "                endpoints = normalizeEndpoints(paths.map(path => ({\n" +
                 "                    path: path,\n" +
                 "                    autoOpen: autoOpens.includes(path)\n" +
-                "                }));\n" +
+                "                })));\n" +
                 "                \n" +
                 "                renderEndpoints();\n" +
                 "            } catch (error) {\n" +
@@ -1286,15 +1438,11 @@ public class WebDashboard {
                 "\n" +
                 "        function addEndpoint() {\n" +
                 "            const input = document.getElementById('newEndpoint');\n" +
-                "            const value = input.value.trim();\n" +
-                "            if (value) {\n" +
-                "                const exists = endpoints.some(ep => ep.path === value);\n" +
-                "                if (!exists) {\n" +
-                "                    endpoints.push({path: value, autoOpen: false});\n" +
-                "                    input.value = '';\n" +
-                "                    renderEndpoints();\n" +
-                "                }\n" +
-                "            }\n" +
+                "            const value = normalizePath(input.value);\n" +
+                "            if (!value) return;\n" +
+                "            endpoints = normalizeEndpoints(endpoints.concat([{ path: value, autoOpen: false }]));\n" +
+                "            input.value = '';\n" +
+                "            renderEndpoints();\n" +
                 "        }\n" +
                 "\n" +
                 "        function removeEndpoint(index) {\n" +
@@ -1304,9 +1452,11 @@ public class WebDashboard {
                 "\n" +
                 "        function toggleAutoOpen(index) {\n" +
                 "            endpoints[index].autoOpen = !endpoints[index].autoOpen;\n" +
+                "            renderEndpoints();\n" +
                 "        }\n" +
                 "\n" +
                 "        async function saveSettings() {\n" +
+                "            endpoints = normalizeEndpoints(endpoints);\n" +
                 "            const paths = endpoints.map(ep => ep.path).join(', ');\n" +
                 "            const autoOpenPaths = endpoints.filter(ep => ep.autoOpen).map(ep => ep.path).join(', ');\n" +
                 "            \n" +
@@ -1338,11 +1488,17 @@ public class WebDashboard {
                 "        }\n" +
                 "\n" +
                 "        async function applyNow() {\n" +
+                "            endpoints = normalizeEndpoints(endpoints);\n" +
+                "            const paths = endpoints.map(ep => ep.path).join(', ');\n" +
+                "            const autoOpenPaths = endpoints.filter(ep => ep.autoOpen).map(ep => ep.path).join(', ');\n" +
+                "\n" +
                 "            const config = {\n" +
                 "                'network.ip.range.start': document.getElementById('ipStart').value.trim(),\n" +
                 "                'network.ip.range.end': document.getElementById('ipEnd').value.trim(),\n" +
                 "                'network.port': document.getElementById('port').value.trim(),\n" +
-                "                'check.paths': endpoints.join(', ')\n" +
+                "                'check.paths': paths,\n" +
+                "                'check.paths.autoopen': autoOpenPaths,\n" +
+                "                'browser.choice': document.getElementById('browserChoice').value\n" +
                 "            };\n" +
                 "\n" +
                 "            try {\n" +
