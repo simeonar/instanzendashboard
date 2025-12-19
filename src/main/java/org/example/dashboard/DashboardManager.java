@@ -65,6 +65,13 @@ public class DashboardManager {
                 .count();
     }
 
+    public int getUnreachableInstances() {
+        return (int) instances.stream()
+                .filter(i -> i.getStatus() == InstanceStatus.UNREACHABLE || 
+                            i.getStatus() == InstanceStatus.UNKNOWN)
+                .count();
+    }
+
     public int getActiveApplications() {
         return (int) instances.stream().filter(Instance::isHealthy).count();
     }

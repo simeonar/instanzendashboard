@@ -217,6 +217,7 @@ public class WebDashboard {
             stats.put("httpOk", dashboardManager.getHttpOkInstances());
             stats.put("degraded", dashboardManager.getDegradedInstances());
             stats.put("errors", dashboardManager.getErrorInstances());
+            stats.put("unreachable", dashboardManager.getUnreachableInstances());
             stats.put("lastUpdate", dashboardManager.getLastUpdateTime());
             stats.put("scanInterval", configManager.getScanIntervalSeconds());
             stats.put("currentTime", System.currentTimeMillis());
@@ -751,6 +752,40 @@ public class WebDashboard {
                 "            font-size: 11px;\n" +
                 "            padding: 4px 8px;\n" +
                 "        }\n" +
+                "        .stat-card.unreachable .value { color: #9ca3af; }\n" +
+                "        .search-box {\n" +
+                "            margin-bottom: 15px;\n" +
+                "        }\n" +
+                "        .search-input {\n" +
+                "            width: 100%;\n" +
+                "            max-width: 300px;\n" +
+                "            padding: 10px 14px;\n" +
+                "            border-radius: 8px;\n" +
+                "            border: 1px solid rgba(148, 163, 184, 0.25);\n" +
+                "            background: rgba(15, 23, 42, 0.8);\n" +
+                "            color: #e2e8f0;\n" +
+                "            font-size: 14px;\n" +
+                "        }\n" +
+                "        .search-input:focus {\n" +
+                "            outline: none;\n" +
+                "            border-color: rgba(56, 189, 248, 0.5);\n" +
+                "        }\n" +
+                "        .search-input::placeholder { color: #64748b; }\n" +
+                "        .instances-table th {\n" +
+                "            cursor: pointer;\n" +
+                "            user-select: none;\n" +
+                "            transition: background 0.2s;\n" +
+                "        }\n" +
+                "        .instances-table th:hover {\n" +
+                "            background: rgba(56, 189, 248, 0.15);\n" +
+                "        }\n" +
+                "        .instances-table th .sort-icon {\n" +
+                "            margin-left: 5px;\n" +
+                "            opacity: 0.5;\n" +
+                "        }\n" +
+                "        .instances-table th.sorted .sort-icon {\n" +
+                "            opacity: 1;\n" +
+                "        }\n" +
                 "    </style>\n" +
                 "</head>\n" +
                 "<body>\n" +
@@ -785,10 +820,19 @@ public class WebDashboard {
                 "                <div class=\"label\">Errors</div>\n" +
                 "                <div class=\"value\" id=\"errorInstances\">0</div>\n" +
                 "            </div>\n" +
+                "            <div class=\"stat-card unreachable\">\n" +
+                "                <div class=\"label\">Unreachable</div>\n" +
+                "                <div class=\"value\" id=\"unreachableInstances\">0</div>\n" +
+                "            </div>\n" +
                 "        </div>\n" +
                 "\n" +
                 "        <div class=\"instances-container\">\n" +
-                "            <h2 style=\"margin-bottom: 20px;\">Instances</h2>\n" +
+                "            <div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;\">\n" +
+                "                <h2>Instances</h2>\n" +
+                "                <div class=\"search-box\">\n" +
+                "                    <input type=\"text\" class=\"search-input\" id=\"searchInput\" placeholder=\"🔍 Search by IP...\" oninput=\"onSearchInput()\">\n" +
+                "                </div>\n" +
+                "            </div>\n" +
                 "            <div id=\"instances\" class=\"loading\">Loading instances...</div>\n" +
                 "        </div>\n" +
                 "    </div>\n" +
@@ -798,6 +842,9 @@ public class WebDashboard {
                 "        let scanPollInterval = null;\n" +
                 "        let showAll = (localStorage.getItem('showAll') !== 'false');\n" +
                 "        let lastInstances = [];\n" +
+                "        let searchQuery = '';\n" +
+                "        let sortColumn = 'ip';\n" +
+                "        let sortAsc = true;\n" +
                 "\n" +
                 "        const STATUS_LABELS = {\n" +
                 "            'UNKNOWN': 'Unknown',\n" +
@@ -831,6 +878,27 @@ public class WebDashboard {
                 "            return status && status !== 'UNREACHABLE' && status !== 'UNKNOWN' && status !== 'TIMEOUT';\n" +
                 "        }\n" +
                 "\n" +
+                "        function onSearchInput() {\n" +
+                "            const input = document.getElementById('searchInput');\n" +
+                "            searchQuery = (input ? input.value : '').toLowerCase().trim();\n" +
+                "            renderInstances(lastInstances);\n" +
+                "        }\n" +
+                "\n" +
+                "        function sortBy(column) {\n" +
+                "            if (sortColumn === column) {\n" +
+                "                sortAsc = !sortAsc;\n" +
+                "            } else {\n" +
+                "                sortColumn = column;\n" +
+                "                sortAsc = true;\n" +
+                "            }\n" +
+                "            renderInstances(lastInstances);\n" +
+                "        }\n" +
+                "\n" +
+                "        function ipToNum(ip) {\n" +
+                "            const parts = ip.split('.');\n" +
+                "            return parts.reduce((acc, p) => (acc << 8) + parseInt(p, 10), 0);\n" +
+                "        }\n" +
+                "\n" +
                 "        function statusRank(status) {\n" +
                 "            switch (status) {\n" +
                 "                case 'API_HEALTHY': return 0;\n" +
@@ -856,12 +924,27 @@ public class WebDashboard {
                 "            lastInstances = sortInstancesForReadability(instances || []);\n" +
                 "\n" +
                 "            let filtered = lastInstances;\n" +
+                "            // Filter by reachability\n" +
                 "            if (!showAll) {\n" +
-                "                filtered = lastInstances.filter(i => isReachable(i.status));\n" +
+                "                filtered = filtered.filter(i => isReachable(i.status));\n" +
                 "            }\n" +
+                "            // Filter by search query\n" +
+                "            if (searchQuery) {\n" +
+                "                filtered = filtered.filter(i => i.ipAddress.includes(searchQuery));\n" +
+                "            }\n" +
+                "            // Sort\n" +
+                "            filtered = [...filtered].sort((a, b) => {\n" +
+                "                let cmp = 0;\n" +
+                "                if (sortColumn === 'ip') {\n" +
+                "                    cmp = ipToNum(a.ipAddress) - ipToNum(b.ipAddress);\n" +
+                "                } else if (sortColumn === 'status') {\n" +
+                "                    cmp = statusRank(a.status) - statusRank(b.status);\n" +
+                "                }\n" +
+                "                return sortAsc ? cmp : -cmp;\n" +
+                "            });\n" +
                 "\n" +
                 "            if (filtered.length === 0) {\n" +
-                "                const msg = showAll ? 'No instances found' : 'No reachable instances found';\n" +
+                "                const msg = searchQuery ? 'No matching instances' : (showAll ? 'No instances found' : 'No reachable instances found');\n" +
                 "                container.innerHTML = '<div class=\"loading\">' + msg + '</div>';\n" +
                 "                return;\n" +
                 "            }\n" +
@@ -870,8 +953,10 @@ public class WebDashboard {
                 "        }\n" +
                 "\n" +
                 "        function renderInstancesTable(instances) {\n" +
+                "            const ipSortIcon = sortColumn === 'ip' ? (sortAsc ? '▲' : '▼') : '⇅';\n" +
+                "            const statusSortIcon = sortColumn === 'status' ? (sortAsc ? '▲' : '▼') : '⇅';\n" +
                 "            let html = '<table class=\"instances-table\">';\n" +
-                "            html += '<thead><tr><th>Address</th><th>Status</th><th>Paths</th><th>Metadata</th></tr></thead><tbody>';\n" +
+                "            html += `<thead><tr><th onclick=\"sortBy('ip')\" class=\"${sortColumn === 'ip' ? 'sorted' : ''}\">Address <span class=\"sort-icon\">${ipSortIcon}</span></th><th onclick=\"sortBy('status')\" class=\"${sortColumn === 'status' ? 'sorted' : ''}\">Status <span class=\"sort-icon\">${statusSortIcon}</span></th><th>Paths</th><th>Metadata</th></tr></thead><tbody>`;\n" +
                 "            for (const instance of instances) {\n" +
                 "                const metadata = instance.metadata || {};\n" +
                 "                const paths = instance.pathResults || {};\n" +
@@ -956,6 +1041,7 @@ public class WebDashboard {
                 "                    document.getElementById('httpOkInstances').textContent = stats.httpOk || 0;\n" +
                 "                    document.getElementById('degradedInstances').textContent = stats.degraded || 0;\n" +
                 "                    document.getElementById('errorInstances').textContent = stats.errors || 0;\n" +
+                "                    document.getElementById('unreachableInstances').textContent = stats.unreachable || 0;\n" +
                 "\n" +
                 "                    if (stats.pathsWithOpenButton) {\n" +
                 "                        pathsWithOpenButton = stats.pathsWithOpenButton.split(',').map(s => s.trim()).filter(s => s);\n" +
