@@ -1,5 +1,43 @@
 # InstanzenDashboard - Development Progress
 
+## 2025-12-20: UI Overhaul + Bug Fixes
+
+### Implemented
+
+#### 1. ✅ Modern Slate/Blue Theme (replaces "hacker" green)
+- **Problem**: Green "hacker" theme with monospace font was hard on the eyes.
+- **Fix**: Complete UI overhaul with modern slate/blue color scheme:
+  - Background: `#1e293b` → `#0f172a` gradient
+  - Text: `#e2e8f0` (light slate)
+  - Accents: `#38bdf8` (sky blue) instead of green
+  - Font: Segoe UI / system-ui (more readable)
+  - Borders: Subtle slate gray `rgba(148,163,184,...)`
+- **Scope**: Both Dashboard and Settings pages updated.
+- **File**: `src/main/java/org/example/dashboard/WebDashboard.java`
+
+#### 2. ✅ Fixed paths not loading from external config
+- **Problem**: External config file at `~/.instanzen-dashboard/application.properties` contained `check.paths=[object Object], [object Object]...` due to earlier serialization bug.
+- **Fix**: Restored correct paths in external config file:
+  - `check.paths=/,/index.html,/index.php,/index.php?action=ping`
+- **Root cause**: Previous JS serialization bug (fixed in earlier session) left corrupted data in config.
+
+#### 3. ✅ Scan results sorted by IP order (not by status)
+- **Problem**: `sortInstancesForReadability()` sorted by status severity, making it hard to find specific IPs.
+- **Fix**: Changed to preserve natural IP order from scanner (deterministic).
+- **Code**: `sortInstancesForReadability()` now returns `instances || []` without sorting.
+- **File**: `src/main/java/org/example/dashboard/WebDashboard.java`
+
+### Color Scheme Reference
+| Element | Old (Green) | New (Slate/Blue) |
+|---------|-------------|------------------|
+| Body BG | `#0b1220` | `#1e293b` |
+| Text | `#c7f9cc` | `#e2e8f0` |
+| Accent | `#86efac` / `#22c55e` | `#38bdf8` |
+| Cards | `rgba(5,10,18,...)` | `rgba(30,41,59,...)` |
+| Borders | `rgba(34,197,94,...)` | `rgba(148,163,184,...)` |
+
+---
+
 ## 2025-12-19: Scan UX + Persistence Improvements
 
 ### Implemented
