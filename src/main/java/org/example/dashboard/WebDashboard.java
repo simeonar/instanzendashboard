@@ -416,10 +416,10 @@ public class WebDashboard {
                 "            box-sizing: border-box;\n" +
                 "        }\n" +
                 "        body {\n" +
-                "            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n" +
-                "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n" +
-                "            color: #333;\n" +
-                "            padding: 20px;\n" +
+                "            font-family: Consolas, 'Courier New', monospace;\n" +
+                "            background: radial-gradient(circle at top, #0b1220 0%, #05070d 60%, #02040a 100%);\n" +
+                "            color: #c7f9cc;\n" +
+                "            padding: 18px;\n" +
                 "            min-height: 100vh;\n" +
                 "        }\n" +
                 "        .container {\n" +
@@ -427,15 +427,17 @@ public class WebDashboard {
                 "            margin: 0 auto;\n" +
                 "        }\n" +
                 "        .header {\n" +
-                "            background: white;\n" +
-                "            padding: 30px;\n" +
+                "            background: rgba(5, 10, 18, 0.85);\n" +
+                "            padding: 22px;\n" +
                 "            border-radius: 12px;\n" +
-                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
-                "            margin-bottom: 20px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.25);\n" +
+                "            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.08), 0 10px 30px rgba(0,0,0,0.55);\n" +
+                "            margin-bottom: 16px;\n" +
                 "        }\n" +
                 "        h1 {\n" +
-                "            color: #667eea;\n" +
-                "            margin-bottom: 10px;\n" +
+                "            color: #86efac;\n" +
+                "            margin-bottom: 8px;\n" +
+                "            letter-spacing: 0.5px;\n" +
                 "        }\n" +
                 "        .stats {\n" +
                 "            display: grid;\n" +
@@ -444,40 +446,42 @@ public class WebDashboard {
                 "            margin-bottom: 20px;\n" +
                 "        }\n" +
                 "        .stat-card {\n" +
-                "            background: white;\n" +
+                "            background: rgba(5, 10, 18, 0.85);\n" +
                 "            padding: 20px;\n" +
                 "            border-radius: 12px;\n" +
-                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.18);\n" +
+                "            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.06), 0 10px 30px rgba(0,0,0,0.45);\n" +
                 "            text-align: center;\n" +
                 "        }\n" +
                 "        .stat-card .label {\n" +
                 "            font-size: 14px;\n" +
-                "            color: #666;\n" +
+                "            color: rgba(199, 249, 204, 0.70);\n" +
                 "            margin-bottom: 5px;\n" +
                 "        }\n" +
                 "        .stat-card .value {\n" +
                 "            font-size: 32px;\n" +
                 "            font-weight: bold;\n" +
                 "        }\n" +
-                "        .stat-card.healthy .value { color: #10b981; }\n" +
-                "        .stat-card.http-ok .value { color: #06b6d4; }\n" +
-                "        .stat-card.degraded .value { color: #f59e0b; }\n" +
-                "        .stat-card.errors .value { color: #ef4444; }\n" +
+                "        .stat-card.healthy .value { color: #86efac; }\n" +
+                "        .stat-card.http-ok .value { color: #a7f3d0; }\n" +
+                "        .stat-card.degraded .value { color: #fde68a; }\n" +
+                "        .stat-card.errors .value { color: #fca5a5; }\n" +
                 "        .instances-container {\n" +
-                "            background: white;\n" +
+                "            background: rgba(5, 10, 18, 0.75);\n" +
                 "            padding: 30px;\n" +
                 "            border-radius: 12px;\n" +
-                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.18);\n" +
+                "            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.05), 0 10px 30px rgba(0,0,0,0.45);\n" +
                 "        }\n" +
                 "        .instance-card {\n" +
-                "            border: 1px solid #e5e7eb;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.22);\n" +
                 "            border-radius: 8px;\n" +
                 "            padding: 20px;\n" +
                 "            margin-bottom: 15px;\n" +
                 "            transition: all 0.3s ease;\n" +
                 "        }\n" +
                 "        .instance-card:hover {\n" +
-                "            box-shadow: 0 4px 12px rgba(0,0,0,0.1);\n" +
+                "            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.14), 0 12px 40px rgba(0,0,0,0.55);\n" +
                 "            transform: translateY(-2px);\n" +
                 "        }\n" +
                 "        .instance-header {\n" +
@@ -489,7 +493,7 @@ public class WebDashboard {
                 "        .instance-title {\n" +
                 "            font-size: 18px;\n" +
                 "            font-weight: bold;\n" +
-                "            color: #1f2937;\n" +
+                "            color: #c7f9cc;\n" +
                 "        }\n" +
                 "        .status-badge {\n" +
                 "            padding: 6px 12px;\n" +
@@ -498,17 +502,17 @@ public class WebDashboard {
                 "            font-weight: 600;\n" +
                 "            text-transform: uppercase;\n" +
                 "        }\n" +
-                "        .status-API_HEALTHY { background: #d1fae5; color: #065f46; }\n" +
-                "        .status-HTTP_OK { background: #cffafe; color: #164e63; }\n" +
-                "        .status-API_DEGRADED { background: #fef3c7; color: #92400e; }\n" +
-                "        .status-API_ERROR { background: #fee2e2; color: #991b1b; }\n" +
-                "        .status-PORT_OPEN { background: #e9d5ff; color: #6b21a8; }\n" +
-                "        .status-UNREACHABLE { background: #fee2e2; color: #991b1b; }\n" +
+                "        .status-API_HEALTHY { background: rgba(34, 197, 94, 0.14); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.35); }\n" +
+                "        .status-HTTP_OK { background: rgba(16, 185, 129, 0.12); color: #a7f3d0; border: 1px solid rgba(16, 185, 129, 0.30); }\n" +
+                "        .status-API_DEGRADED { background: rgba(245, 158, 11, 0.14); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.30); }\n" +
+                "        .status-API_ERROR { background: rgba(239, 68, 68, 0.14); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.30); }\n" +
+                "        .status-PORT_OPEN { background: rgba(59, 130, 246, 0.12); color: #bfdbfe; border: 1px solid rgba(59, 130, 246, 0.28); }\n" +
+                "        .status-UNREACHABLE { background: rgba(239, 68, 68, 0.10); color: rgba(252, 165, 165, 0.95); border: 1px solid rgba(239, 68, 68, 0.22); }\n" +
                 "        .metadata {\n" +
                 "            display: flex;\n" +
                 "            gap: 20px;\n" +
                 "            margin-bottom: 15px;\n" +
-                "            color: #6b7280;\n" +
+                "            color: rgba(199, 249, 204, 0.70);\n" +
                 "            font-size: 14px;\n" +
                 "        }\n" +
                 "        .metadata span {\n" +
@@ -522,32 +526,32 @@ public class WebDashboard {
                 "            margin-top: 10px;\n" +
                 "        }\n" +
                 "        .paths-table th {\n" +
-                "            background: #f9fafb;\n" +
+                "            background: rgba(34, 197, 94, 0.06);\n" +
                 "            padding: 10px;\n" +
                 "            text-align: left;\n" +
                 "            font-size: 12px;\n" +
-                "            color: #6b7280;\n" +
+                "            color: rgba(199, 249, 204, 0.75);\n" +
                 "            font-weight: 600;\n" +
                 "            text-transform: uppercase;\n" +
                 "        }\n" +
                 "        .paths-table td {\n" +
                 "            padding: 12px 10px;\n" +
-                "            border-top: 1px solid #e5e7eb;\n" +
+                "            border-top: 1px solid rgba(34, 197, 94, 0.14);\n" +
                 "            font-size: 14px;\n" +
                 "        }\n" +
                 "        .path-link {\n" +
-                "            color: #667eea;\n" +
+                "            color: #86efac;\n" +
                 "            text-decoration: none;\n" +
                 "            font-weight: 500;\n" +
                 "            transition: color 0.2s;\n" +
                 "        }\n" +
                 "        .path-link:hover {\n" +
-                "            color: #764ba2;\n" +
+                "            color: #c7f9cc;\n" +
                 "            text-decoration: underline;\n" +
                 "        }\n" +
                 "        .open-btn {\n" +
-                "            background: #667eea;\n" +
-                "            color: white;\n" +
+                "            background: rgba(34, 197, 94, 0.12);\n" +
+                "            color: #c7f9cc;\n" +
                 "            border: none;\n" +
                 "            padding: 6px 12px;\n" +
                 "            border-radius: 6px;\n" +
@@ -556,13 +560,13 @@ public class WebDashboard {
                 "            transition: background 0.2s;\n" +
                 "        }\n" +
                 "        .open-btn:hover {\n" +
-                "            background: #764ba2;\n" +
+                "            background: rgba(34, 197, 94, 0.22);\n" +
                 "        }\n" +
                 "        .refresh-btn {\n" +
-                "            background: white;\n" +
-                "            color: #667eea;\n" +
-                "            border: 2px solid #667eea;\n" +
-                "            padding: 10px 20px;\n" +
+                "            background: rgba(34, 197, 94, 0.10);\n" +
+                "            color: #c7f9cc;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.35);\n" +
+                "            padding: 10px 18px;\n" +
                 "            border-radius: 8px;\n" +
                 "            cursor: pointer;\n" +
                 "            font-size: 16px;\n" +
@@ -570,23 +574,23 @@ public class WebDashboard {
                 "            transition: all 0.3s;\n" +
                 "        }\n" +
                 "        .refresh-btn:hover {\n" +
-                "            background: #667eea;\n" +
-                "            color: white;\n" +
-                "            transform: rotate(180deg);\n" +
+                "            background: rgba(34, 197, 94, 0.20);\n" +
+                "            color: #d1fae5;\n" +
+                "            transform: translateY(-1px);\n" +
                 "        }\n" +
                 "        .refresh-btn:active {\n" +
-                "            transform: rotate(180deg) scale(0.95);\n" +
+                "            transform: translateY(0) scale(0.98);\n" +
                 "        }\n" +
                 "        .last-update {\n" +
                 "            text-align: center;\n" +
-                "            color: #6b7280;\n" +
+                "            color: rgba(199, 249, 204, 0.70);\n" +
                 "            font-size: 14px;\n" +
                 "            margin-top: 10px;\n" +
                 "        }\n" +
                 "        .loading {\n" +
                 "            text-align: center;\n" +
                 "            padding: 40px;\n" +
-                "            color: #6b7280;\n" +
+                "            color: rgba(199, 249, 204, 0.70);\n" +
                 "        }\n" +
                 "        details {\n" +
                 "            margin-top: 10px;\n" +
@@ -594,19 +598,19 @@ public class WebDashboard {
                 "        details summary {\n" +
                 "            cursor: pointer;\n" +
                 "            padding: 10px;\n" +
-                "            background: #f9fafb;\n" +
+                "            background: rgba(34, 197, 94, 0.06);\n" +
                 "            border-radius: 6px;\n" +
                 "            font-weight: 600;\n" +
-                "            color: #374151;\n" +
+                "            color: rgba(199, 249, 204, 0.90);\n" +
                 "            transition: background 0.2s;\n" +
                 "            user-select: none;\n" +
                 "        }\n" +
                 "        details summary:hover {\n" +
-                "            background: #f3f4f6;\n" +
+                "            background: rgba(34, 197, 94, 0.12);\n" +
                 "        }\n" +
                 "        details[open] summary {\n" +
                 "            margin-bottom: 10px;\n" +
-                "            background: #e5e7eb;\n" +
+                "            background: rgba(34, 197, 94, 0.14);\n" +
                 "        }\n" +
                 "        .view-toggle {\n" +
                 "            display: inline-flex;\n" +
@@ -615,9 +619,9 @@ public class WebDashboard {
                 "            margin-right: 10px;\n" +
                 "            padding: 8px 14px;\n" +
                 "            border-radius: 10px;\n" +
-                "            border: 1px solid #e5e7eb;\n" +
-                "            background: white;\n" +
-                "            color: #374151;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.35);\n" +
+                "            background: rgba(34, 197, 94, 0.08);\n" +
+                "            color: rgba(199, 249, 204, 0.95);\n" +
                 "            font-weight: 600;\n" +
                 "            cursor: pointer;\n" +
                 "            user-select: none;\n" +
@@ -987,54 +991,58 @@ public class WebDashboard {
                 "    <style>\n" +
                 "        * { margin: 0; padding: 0; box-sizing: border-box; }\n" +
                 "        body {\n" +
-                "            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n" +
-                "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n" +
+                "            font-family: Consolas, 'Courier New', monospace;\n" +
+                "            background: radial-gradient(circle at top, #0b1220 0%, #05070d 60%, #02040a 100%);\n" +
+                "            color: #c7f9cc;\n" +
                 "            min-height: 100vh;\n" +
-                "            padding: 20px;\n" +
+                "            padding: 18px;\n" +
                 "        }\n" +
                 "        .container {\n" +
                 "            max-width: 900px;\n" +
                 "            margin: 0 auto;\n" +
                 "        }\n" +
                 "        .header {\n" +
-                "            background: rgba(255,255,255,0.95);\n" +
-                "            padding: 20px;\n" +
-                "            border-radius: 10px;\n" +
-                "            margin-bottom: 20px;\n" +
-                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
+                "            background: rgba(5, 10, 18, 0.85);\n" +
+                "            padding: 18px;\n" +
+                "            border-radius: 12px;\n" +
+                "            margin-bottom: 16px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.25);\n" +
+                "            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.08), 0 10px 30px rgba(0,0,0,0.55);\n" +
                 "            display: flex;\n" +
                 "            justify-content: space-between;\n" +
                 "            align-items: center;\n" +
                 "        }\n" +
-                "        h1 { color: #333; font-size: 24px; }\n" +
+                "        h1 { color: #86efac; font-size: 22px; letter-spacing: 0.5px; }\n" +
                 "        .back-btn {\n" +
-                "            background: white;\n" +
-                "            border: 2px solid #9333ea;\n" +
-                "            padding: 8px 16px;\n" +
-                "            border-radius: 8px;\n" +
+                "            background: rgba(34, 197, 94, 0.10);\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.35);\n" +
+                "            padding: 8px 14px;\n" +
+                "            border-radius: 10px;\n" +
                 "            cursor: pointer;\n" +
                 "            text-decoration: none;\n" +
-                "            color: #9333ea;\n" +
-                "            font-weight: 600;\n" +
-                "            transition: all 0.3s ease;\n" +
+                "            color: #c7f9cc;\n" +
+                "            font-weight: 700;\n" +
+                "            transition: all 0.2s ease;\n" +
                 "        }\n" +
                 "        .back-btn:hover {\n" +
-                "            background: #9333ea;\n" +
-                "            color: white;\n" +
+                "            background: rgba(34, 197, 94, 0.20);\n" +
+                "            transform: translateY(-1px);\n" +
                 "        }\n" +
                 "        .settings-card {\n" +
-                "            background: rgba(255,255,255,0.95);\n" +
-                "            padding: 30px;\n" +
-                "            border-radius: 10px;\n" +
-                "            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n" +
-                "            margin-bottom: 20px;\n" +
+                "            background: rgba(5, 10, 18, 0.85);\n" +
+                "            padding: 26px;\n" +
+                "            border-radius: 12px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.18);\n" +
+                "            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.06), 0 10px 30px rgba(0,0,0,0.45);\n" +
+                "            margin-bottom: 16px;\n" +
                 "        }\n" +
                 "        .settings-card h2 {\n" +
-                "            color: #333;\n" +
-                "            margin-bottom: 20px;\n" +
-                "            font-size: 20px;\n" +
-                "            border-bottom: 2px solid #9333ea;\n" +
+                "            color: rgba(199, 249, 204, 0.95);\n" +
+                "            margin-bottom: 18px;\n" +
+                "            font-size: 18px;\n" +
+                "            border-bottom: 1px solid rgba(34, 197, 94, 0.25);\n" +
                 "            padding-bottom: 10px;\n" +
+                "            letter-spacing: 0.4px;\n" +
                 "        }\n" +
                 "        .form-group {\n" +
                 "            margin-bottom: 20px;\n" +
@@ -1042,24 +1050,26 @@ public class WebDashboard {
                 "        .form-group label {\n" +
                 "            display: block;\n" +
                 "            margin-bottom: 8px;\n" +
-                "            color: #555;\n" +
+                "            color: rgba(199, 249, 204, 0.85);\n" +
                 "            font-weight: 600;\n" +
                 "        }\n" +
-                "        .form-group input {\n" +
+                "        .form-group input, .form-group select {\n" +
                 "            width: 100%;\n" +
                 "            padding: 10px;\n" +
-                "            border: 2px solid #ddd;\n" +
-                "            border-radius: 6px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.22);\n" +
+                "            border-radius: 10px;\n" +
                 "            font-size: 14px;\n" +
+                "            background: rgba(2, 4, 10, 0.75);\n" +
+                "            color: #c7f9cc;\n" +
                 "            transition: border-color 0.3s;\n" +
                 "        }\n" +
-                "        .form-group input:focus {\n" +
+                "        .form-group input:focus, .form-group select:focus {\n" +
                 "            outline: none;\n" +
-                "            border-color: #9333ea;\n" +
+                "            border-color: rgba(34, 197, 94, 0.55);\n" +
                 "        }\n" +
                 "        .endpoints-list {\n" +
-                "            border: 2px solid #ddd;\n" +
-                "            border-radius: 6px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.22);\n" +
+                "            border-radius: 12px;\n" +
                 "            padding: 10px;\n" +
                 "            max-height: 300px;\n" +
                 "            overflow-y: auto;\n" +
@@ -1070,8 +1080,9 @@ public class WebDashboard {
                 "            align-items: center;\n" +
                 "            padding: 8px 10px;\n" +
                 "            margin-bottom: 5px;\n" +
-                "            background: #f8f9fa;\n" +
-                "            border-radius: 4px;\n" +
+                "            background: rgba(34, 197, 94, 0.06);\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.12);\n" +
+                "            border-radius: 10px;\n" +
                 "        }\n" +
                 "        .endpoint-item:last-child { margin-bottom: 0; }\n" +
                 "        .endpoint-controls {\n" +
@@ -1084,7 +1095,7 @@ public class WebDashboard {
                 "            align-items: center;\n" +
                 "            gap: 5px;\n" +
                 "            font-size: 13px;\n" +
-                "            color: #555;\n" +
+                "            color: rgba(199, 249, 204, 0.75);\n" +
                 "        }\n" +
                 "        .auto-open-checkbox input[type=\"checkbox\"] {\n" +
                 "            width: 18px;\n" +
@@ -1092,16 +1103,16 @@ public class WebDashboard {
                 "            cursor: pointer;\n" +
                 "        }\n" +
                 "        .delete-btn {\n" +
-                "            background: #ef4444;\n" +
-                "            color: white;\n" +
+                "            background: rgba(239, 68, 68, 0.14);\n" +
+                "            color: rgba(252, 165, 165, 0.95);\n" +
                 "            border: none;\n" +
                 "            padding: 5px 12px;\n" +
-                "            border-radius: 4px;\n" +
+                "            border-radius: 10px;\n" +
                 "            cursor: pointer;\n" +
                 "            font-size: 12px;\n" +
                 "            transition: background 0.3s;\n" +
                 "        }\n" +
-                "        .delete-btn:hover { background: #dc2626; }\n" +
+                "        .delete-btn:hover { background: rgba(239, 68, 68, 0.22); }\n" +
                 "        .add-endpoint {\n" +
                 "            display: flex;\n" +
                 "            gap: 10px;\n" +
@@ -1110,23 +1121,26 @@ public class WebDashboard {
                 "        .add-endpoint input {\n" +
                 "            flex: 1;\n" +
                 "            padding: 8px;\n" +
-                "            border: 2px solid #ddd;\n" +
-                "            border-radius: 4px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.22);\n" +
+                "            border-radius: 10px;\n" +
+                "            background: rgba(2, 4, 10, 0.75);\n" +
+                "            color: #c7f9cc;\n" +
                 "        }\n" +
                 "        .add-btn, .save-btn {\n" +
-                "            background: #9333ea;\n" +
-                "            color: white;\n" +
+                "            background: rgba(34, 197, 94, 0.12);\n" +
+                "            color: #c7f9cc;\n" +
                 "            border: none;\n" +
                 "            padding: 10px 24px;\n" +
-                "            border-radius: 6px;\n" +
+                "            border-radius: 10px;\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.35);\n" +
                 "            cursor: pointer;\n" +
                 "            font-size: 14px;\n" +
                 "            font-weight: 600;\n" +
                 "            transition: all 0.3s;\n" +
                 "        }\n" +
                 "        .add-btn:hover, .save-btn:hover {\n" +
-                "            background: #7e22ce;\n" +
-                "            transform: scale(1.05);\n" +
+                "            background: rgba(34, 197, 94, 0.22);\n" +
+                "            transform: translateY(-1px);\n" +
                 "        }\n" +
                 "        .save-btn {\n" +
                 "            width: 100%;\n" +
@@ -1140,19 +1154,19 @@ public class WebDashboard {
                 "            display: none;\n" +
                 "        }\n" +
                 "        .message.success {\n" +
-                "            background: #d1fae5;\n" +
-                "            border: 2px solid #10b981;\n" +
-                "            color: #065f46;\n" +
+                "            background: rgba(34, 197, 94, 0.10);\n" +
+                "            border: 1px solid rgba(34, 197, 94, 0.35);\n" +
+                "            color: #c7f9cc;\n" +
                 "        }\n" +
                 "        .message.error {\n" +
-                "            background: #fee2e2;\n" +
-                "            border: 2px solid #ef4444;\n" +
-                "            color: #991b1b;\n" +
+                "            background: rgba(239, 68, 68, 0.12);\n" +
+                "            border: 1px solid rgba(239, 68, 68, 0.30);\n" +
+                "            color: rgba(252, 165, 165, 0.95);\n" +
                 "        }\n" +
                 "        .help-text {\n" +
                 "            font-size: 12px;\n" +
-                "            color: #777;\n" +
-                "            margin-top: 5px;\n" +
+                "            color: rgba(199, 249, 204, 0.65);\n" +
+                "            margin-top: 6px;\n" +
                 "        }\n" +
                 "    </style>\n" +
                 "</head>\n" +
@@ -1203,7 +1217,7 @@ public class WebDashboard {
                 "            <h2>Browser Settings</h2>\n" +
                 "            <div class='form-group'>\n" +
                 "                <label for='browserChoice'>Default Browser for Auto-Open</label>\n" +
-                "                <select id='browserChoice' style='width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;'>\n" +
+                "                <select id='browserChoice'>\n" +
                 "                    <option value='default'>System Default Browser</option>\n" +
                 "                    <option value='chrome'>Google Chrome</option>\n" +
                 "                    <option value='firefox'>Mozilla Firefox</option>\n" +
@@ -1215,7 +1229,7 @@ public class WebDashboard {
                 "\n" +
                 "        <div style='display: flex; gap: 10px;'>\n" +
                 "            <button class='save-btn' onclick='saveSettings()' style='flex: 1;'>💾 Save Settings</button>\n" +
-                "            <button class='save-btn' onclick='applyNow()' style='flex: 1; background: #10b981;'>⚡ Apply Now</button>\n" +
+                "            <button class='save-btn' onclick='applyNow()' style='flex: 1; background: rgba(34, 197, 94, 0.22);'>⚡ Apply Now</button>\n" +
                 "        </div>\n" +
                 "    </div>\n" +
                 "\n" +
@@ -1252,7 +1266,7 @@ public class WebDashboard {
                 "        function renderEndpoints() {\n" +
                 "            const list = document.getElementById('endpointsList');\n" +
                 "            if (endpoints.length === 0) {\n" +
-                "                list.innerHTML = '<div style=\"text-align:center;color:#999;padding:20px;\">No endpoints configured</div>';\n" +
+                "                list.innerHTML = '<div style=\"text-align:center;color:rgba(199, 249, 204, 0.60);padding:20px;\">No endpoints configured</div>';\n" +
                 "                return;\n" +
                 "            }\n" +
                 "            list.innerHTML = endpoints.map((ep, idx) => {\n" +

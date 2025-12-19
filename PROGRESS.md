@@ -31,6 +31,11 @@
 - **Persistence**: View mode is stored in browser `localStorage`.
 - **Readability**: Instances are sorted by status severity (healthy first, unreachable last).
 
+#### 6. ✅ Dark "hacker" UI theme
+- **Updated**: Dashboard + Settings pages now use a consistent dark theme (monospace font, green accents, improved contrast).
+- **Scope**: Styling only (no functional changes).
+- **File**: `src/main/java/org/example/dashboard/WebDashboard.java`
+
 ### Files
 - Backend: `src/main/java/org/example/config/ConfigManager.java`, `src/main/java/org/example/scanner/NetworkScanner.java`, `src/main/java/org/example/scanner/HealthChecker.java`, `src/main/java/org/example/ApplicationManager.java`
 - Web UI: `src/main/java/org/example/dashboard/WebDashboard.java`
