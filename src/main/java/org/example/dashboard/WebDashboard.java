@@ -580,30 +580,6 @@ public class WebDashboard {
                 "            border: 1px solid rgba(148, 163, 184, 0.15);\n" +
                 "            box-shadow: 0 4px 20px rgba(0,0,0,0.3);\n" +
                 "        }\n" +
-                "        .instance-card {\n" +
-                "            border: 1px solid rgba(148, 163, 184, 0.2);\n" +
-                "            border-radius: 8px;\n" +
-                "            padding: 20px;\n" +
-                "            margin-bottom: 15px;\n" +
-                "            background: rgba(15, 23, 42, 0.5);\n" +
-                "            transition: all 0.3s ease;\n" +
-                "        }\n" +
-                "        .instance-card:hover {\n" +
-                "            box-shadow: 0 8px 25px rgba(0,0,0,0.3);\n" +
-                "            transform: translateY(-2px);\n" +
-                "            border-color: rgba(56, 189, 248, 0.3);\n" +
-                "        }\n" +
-                "        .instance-header {\n" +
-                "            display: flex;\n" +
-                "            justify-content: space-between;\n" +
-                "            align-items: center;\n" +
-                "            margin-bottom: 15px;\n" +
-                "        }\n" +
-                "        .instance-title {\n" +
-                "            font-size: 18px;\n" +
-                "            font-weight: bold;\n" +
-                "            color: #f1f5f9;\n" +
-                "        }\n" +
                 "        .status-badge {\n" +
                 "            padding: 6px 12px;\n" +
                 "            border-radius: 20px;\n" +
@@ -774,7 +750,7 @@ public class WebDashboard {
                 "                <h1>🖥️ Instance Dashboard</h1>\n" +
                 "                <div>\n" +
                 "                    <a href='/settings' class=\"settings-btn\">⚙️ Settings</a>\n" +
-                "                    <button class=\"view-toggle\" id=\"viewToggle\" onclick=\"toggleViewMode()\">View: Cards</button>\n" +
+                "                    <button class=\"view-toggle\" id=\"viewToggle\" onclick=\"toggleViewMode()\">Show: All</button>\n" +
                 "                    <button class=\"refresh-btn\" onclick=\"triggerScan()\" id=\"scanBtn\">🔍 Scan</button>\n" +
                 "                </div>\n" +
                 "            </div>\n" +
@@ -810,7 +786,7 @@ public class WebDashboard {
                 "    <script>\n" +
                 "        let pathsWithOpenButton = [];\n" +
                 "        let scanPollInterval = null;\n" +
-                "        let viewMode = (localStorage.getItem('viewMode') || 'cards');\n" +
+                "        let showAll = (localStorage.getItem('showAll') !== 'false');\n" +
                 "        let lastInstances = [];\n" +
                 "\n" +
                 "        const STATUS_LABELS = {\n" +
@@ -831,14 +807,18 @@ public class WebDashboard {
                 "        function applyViewModeUi() {\n" +
                 "            const toggle = document.getElementById('viewToggle');\n" +
                 "            if (!toggle) return;\n" +
-                "            toggle.textContent = (viewMode === 'table') ? 'View: Table' : 'View: Cards';\n" +
+                "            toggle.textContent = showAll ? 'Show: All' : 'Show: Reachable';\n" +
                 "        }\n" +
                 "\n" +
                 "        function toggleViewMode() {\n" +
-                "            viewMode = (viewMode === 'table') ? 'cards' : 'table';\n" +
-                "            localStorage.setItem('viewMode', viewMode);\n" +
+                "            showAll = !showAll;\n" +
+                "            localStorage.setItem('showAll', showAll ? 'true' : 'false');\n" +
                 "            applyViewModeUi();\n" +
                 "            renderInstances(lastInstances);\n" +
+                "        }\n" +
+                "\n" +
+                "        function isReachable(status) {\n" +
+                "            return status && status !== 'UNREACHABLE' && status !== 'UNKNOWN' && status !== 'TIMEOUT';\n" +
                 "        }\n" +
                 "\n" +
                 "        function statusRank(status) {\n" +
@@ -865,16 +845,18 @@ public class WebDashboard {
                 "            if (!container) return;\n" +
                 "            lastInstances = sortInstancesForReadability(instances || []);\n" +
                 "\n" +
-                "            if (lastInstances.length === 0) {\n" +
-                "                container.innerHTML = '<div class=\"loading\">No instances found</div>';\n" +
+                "            let filtered = lastInstances;\n" +
+                "            if (!showAll) {\n" +
+                "                filtered = lastInstances.filter(i => isReachable(i.status));\n" +
+                "            }\n" +
+                "\n" +
+                "            if (filtered.length === 0) {\n" +
+                "                const msg = showAll ? 'No instances found' : 'No reachable instances found';\n" +
+                "                container.innerHTML = '<div class=\"loading\">' + msg + '</div>';\n" +
                 "                return;\n" +
                 "            }\n" +
                 "\n" +
-                "            if (viewMode === 'table') {\n" +
-                "                container.innerHTML = renderInstancesTable(lastInstances);\n" +
-                "            } else {\n" +
-                "                container.innerHTML = renderInstancesCards(lastInstances);\n" +
-                "            }\n" +
+                "            container.innerHTML = renderInstancesTable(filtered);\n" +
                 "        }\n" +
                 "\n" +
                 "        function renderInstancesTable(instances) {\n" +
@@ -915,57 +897,6 @@ public class WebDashboard {
                 "            }\n" +
                 "            html += '</tbody></table>';\n" +
                 "            return html;\n" +
-                "        }\n" +
-                "\n" +
-                "        function renderInstancesCards(instances) {\n" +
-                "            return instances.map(instance => {\n" +
-                "                const metadata = instance.metadata || {};\n" +
-                "                const paths = instance.pathResults || {};\n" +
-                "\n" +
-                "                let metadataHtml = '';\n" +
-                "                if (metadata.branch || metadata.version || metadata.commit) {\n" +
-                "                    metadataHtml = '<div class=\"metadata\">';\n" +
-                "                    if (metadata.branch) metadataHtml += '<span>🌿 Branch: <strong>' + metadata.branch + '</strong></span>';\n" +
-                "                    if (metadata.version) metadataHtml += '<span>📦 Version: <strong>' + metadata.version + '</strong></span>';\n" +
-                "                    if (metadata.commit) metadataHtml += '<span>💾 Commit: <strong>' + metadata.commit + '</strong></span>';\n" +
-                "                    metadataHtml += '</div>';\n" +
-                "                }\n" +
-                "\n" +
-                "                let pathsHtml = '';\n" +
-                "                if (Object.keys(paths).length > 0) {\n" +
-                "                    pathsHtml = '<details><summary>📋 Scan Details (' + Object.keys(paths).length + ' paths)</summary>';\n" +
-                "                    pathsHtml += '<table class=\"paths-table\"><thead><tr><th>Path</th><th>Status</th><th>HTTP Code</th><th>Response Time</th><th>Action</th></tr></thead><tbody>';\n" +
-                "                    for (const [path, result] of Object.entries(paths)) {\n" +
-                "                        const url = 'http://' + instance.ipAddress + ':' + instance.port + path;\n" +
-                "                        const showOpenButton = pathsWithOpenButton.includes(path);\n" +
-                "                        pathsHtml += '<tr>';\n" +
-                "                        pathsHtml += '<td><a href=\"' + url + '\" target=\"_blank\" class=\"path-link\">' + path + '</a></td>';\n" +
-                "                        pathsHtml += '<td><span class=\"status-badge status-' + result.status + '\">' + formatStatusLabel(result.status) + '</span></td>';\n" +
-                "                        pathsHtml += '<td>' + (result.httpStatusCode || '-') + '</td>';\n" +
-                "                        pathsHtml += '<td>' + (result.responseTimeMs >= 0 ? result.responseTimeMs + 'ms' : 'N/A') + '</td>';\n" +
-                "                        pathsHtml += '<td>';\n" +
-                "                        if (showOpenButton) {\n" +
-                "                            pathsHtml += '<button class=\"open-btn\" onclick=\"openInBrowser(\\'' + url + '\\')\">Open</button>';\n" +
-                "                        } else {\n" +
-                "                            pathsHtml += '-';\n" +
-                "                        }\n" +
-                "                        pathsHtml += '</td>';\n" +
-                "                        pathsHtml += '</tr>';\n" +
-                "                    }\n" +
-                "                    pathsHtml += '</tbody></table></details>';\n" +
-                "                }\n" +
-                "\n" +
-                "                return `\n" +
-                "                    <div class=\"instance-card\">\n" +
-                "                        <div class=\"instance-header\">\n" +
-                "                            <div class=\"instance-title\">${instance.ipAddress}:${instance.port}</div>\n" +
-                "                            <span class=\"status-badge status-${instance.status}\">${formatStatusLabel(instance.status)}</span>\n" +
-                "                        </div>\n" +
-                "                        ${metadataHtml}\n" +
-                "                        ${pathsHtml}\n" +
-                "                    </div>\n" +
-                "                `;\n" +
-                "            }).join('');\n" +
                 "        }\n" +
                 "\n" +
                 "        function updateScanUiFromStats(stats) {\n" +
