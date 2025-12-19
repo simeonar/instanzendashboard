@@ -593,6 +593,16 @@ public class WebDashboard {
                 "        .status-API_ERROR { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.35); }\n" +
                 "        .status-PORT_OPEN { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); }\n" +
                 "        .status-UNREACHABLE { background: rgba(248, 113, 113, 0.1); color: #fca5a5; border: 1px solid rgba(248, 113, 113, 0.25); }\n" +
+                "        a.path-link-badge {\n" +
+                "            text-decoration: none;\n" +
+                "            cursor: pointer;\n" +
+                "            transition: all 0.2s ease;\n" +
+                "        }\n" +
+                "        a.path-link-badge:hover {\n" +
+                "            transform: scale(1.05);\n" +
+                "            box-shadow: 0 2px 8px rgba(0,0,0,0.3);\n" +
+                "            filter: brightness(1.15);\n" +
+                "        }\n" +
                 "        .metadata {\n" +
                 "            display: flex;\n" +
                 "            gap: 20px;\n" +
@@ -875,9 +885,13 @@ public class WebDashboard {
                 "                    pathsHtml += '<span style=\"color:#9ca3af\">No paths</span>';\n" +
                 "                } else {\n" +
                 "                    for (const [path, result] of entries) {\n" +
-                "                        const label = path;\n" +
-                "                        const badge = `<span class=\"status-badge status-${result.status}\" title=\"${label}\">${label} · ${formatStatusLabel(result.status)}</span>`;\n" +
-                "                        pathsHtml += badge;\n" +
+                "                        const url = 'http://' + instance.ipAddress + ':' + instance.port + path;\n" +
+                "                        const isOk = result.status === 'HTTP_OK' || result.status === 'API_HEALTHY';\n" +
+                "                        if (isOk) {\n" +
+                "                            pathsHtml += `<a href=\"${url}\" target=\"_blank\" class=\"path-link-badge status-badge status-${result.status}\" title=\"Click to open ${url}\">${path} · ${formatStatusLabel(result.status)}</a>`;\n" +
+                "                        } else {\n" +
+                "                            pathsHtml += `<span class=\"status-badge status-${result.status}\" title=\"${path}\">${path} · ${formatStatusLabel(result.status)}</span>`;\n" +
+                "                        }\n" +
                 "                    }\n" +
                 "                }\n" +
                 "                pathsHtml += '</div>';\n" +
