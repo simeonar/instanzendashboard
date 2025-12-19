@@ -17,23 +17,59 @@ public class ConfigManager {
     private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
     private static final String CONFIG_FILE = "application.properties";
     private final Properties properties;
-    private final String configFilePath;
+    private final java.io.File externalConfigFile;
 
     public ConfigManager() throws IOException {
         properties = new Properties();
-        
-        // Try to load from resources (bundled in JAR)
+
+        this.externalConfigFile = resolveExternalConfigFile();
+
+        // Load configuration (external first, then bundled defaults)
+        if (externalConfigFile.exists()) {
+            loadFromFile(externalConfigFile);
+            logger.info("Configuration loaded from {}", externalConfigFile.getAbsolutePath());
+        } else {
+            loadFromClasspath();
+            // Bootstrap external config on first run so that UI edits persist across restarts
+            ensureParentDirectoryExists(externalConfigFile);
+            saveProperties();
+            logger.info("External configuration created at {}", externalConfigFile.getAbsolutePath());
+        }
+    }
+
+    private java.io.File resolveExternalConfigFile() {
+        // Prefer user home for persistence and permissions.
+        // Windows: C:\Users\<user>\.instanzen-dashboard\application.properties
+        // Linux/macOS: /home/<user>/.instanzen-dashboard/application.properties
+        String userHome = System.getProperty("user.home");
+        java.io.File dir = new java.io.File(userHome, ".instanzen-dashboard");
+        return new java.io.File(dir, CONFIG_FILE);
+    }
+
+    private void ensureParentDirectoryExists(java.io.File file) throws IOException {
+        java.io.File parent = file.getParentFile();
+        if (parent != null && !parent.exists()) {
+            if (!parent.mkdirs() && !parent.exists()) {
+                throw new IOException("Failed to create config directory: " + parent.getAbsolutePath());
+            }
+        }
+    }
+
+    private void loadFromClasspath() throws IOException {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE)) {
             if (input == null) {
                 throw new IOException("Unable to find " + CONFIG_FILE);
             }
+            properties.clear();
             properties.load(input);
         }
-        
-        // Determine config file path for saving
-        String jarPath = ConfigManager.class.getProtectionDomain().getCodeSource().getLocation().getPath();
-        java.io.File jarFile = new java.io.File(jarPath);
-        configFilePath = jarFile.getParent() + java.io.File.separator + CONFIG_FILE;
+    }
+
+    private void loadFromFile(java.io.File file) throws IOException {
+        try (InputStream input = new java.io.FileInputStream(file)) {
+            properties.clear();
+            properties.load(input);
+        }
     }
 
     public String getProperty(String key) {
@@ -133,7 +169,16 @@ public class ConfigManager {
     // Check paths
     public String[] getCheckPaths() {
         String paths = getProperty("check.paths", "/,/index.html,/health");
-        return paths.split(",");
+        String[] raw = paths.split(",");
+        java.util.List<String> cleaned = new java.util.ArrayList<>();
+        for (String p : raw) {
+            if (p == null) continue;
+            String trimmed = p.trim();
+            if (!trimmed.isEmpty()) {
+                cleaned.add(trimmed);
+            }
+        }
+        return cleaned.toArray(new String[0]);
     }
 
     // Dashboard settings
@@ -169,10 +214,11 @@ public class ConfigManager {
      * Save all properties to file
      */
     public synchronized void saveProperties() throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(configFilePath)) {
+        ensureParentDirectoryExists(externalConfigFile);
+        try (FileOutputStream fos = new FileOutputStream(externalConfigFile)) {
             properties.store(fos, "Updated by InstanzenDashboard - " + new java.util.Date());
         }
-        logger.info("Configuration saved to {}", configFilePath);
+        logger.info("Configuration saved to {}", externalConfigFile.getAbsolutePath());
     }
 
     /**
@@ -190,13 +236,14 @@ public class ConfigManager {
      * Reload properties from file
      */
     public synchronized void reloadProperties() throws IOException {
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE)) {
-            if (input == null) {
-                throw new IOException("Unable to find " + CONFIG_FILE);
-            }
-            properties.clear();
-            properties.load(input);
-            logger.info("Configuration reloaded from {}", CONFIG_FILE);
+        if (externalConfigFile.exists()) {
+            loadFromFile(externalConfigFile);
+            logger.info("Configuration reloaded from {}", externalConfigFile.getAbsolutePath());
+            return;
         }
+
+        // Fallback for unusual environments
+        loadFromClasspath();
+        logger.info("Configuration reloaded from classpath {}", CONFIG_FILE);
     }
 }

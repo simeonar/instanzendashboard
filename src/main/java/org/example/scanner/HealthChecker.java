@@ -269,7 +269,8 @@ public class HealthChecker {
                 
             } catch (IOException e) {
                 unreachablePaths++;
-                pathResult.setStatus(InstanceStatus.UNREACHABLE);
+                // TCP is already verified by NetworkScanner; IO errors here mean HTTP not responding.
+                pathResult.setStatus(InstanceStatus.PORT_OPEN);
                 pathResult.setErrorMessage(e.getMessage());
                 logger.trace("Failed to check {}: {}", url, e.getMessage());
             }
@@ -293,7 +294,7 @@ public class HealthChecker {
                 instance.getAddress(), successfulPaths, paths.length, bestStatus);
         } else {
             // No paths successful
-            instance.setStatus(InstanceStatus.UNREACHABLE);
+            instance.setStatus(InstanceStatus.PORT_OPEN);
             instance.setErrorMessage("No HTTP paths responding");
             logger.debug("Instance {}: No paths responding", instance.getAddress());
         }

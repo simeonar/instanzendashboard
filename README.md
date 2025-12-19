@@ -37,6 +37,17 @@ A Java 8 application for monitoring network instances with multi-level health ch
 
 ## Configuration
 
+### Persistent configuration (recommended)
+
+The application persists configuration changes made via the web settings page.
+Configuration is stored in an external file under the current user's home directory:
+
+- `~/.instanzen-dashboard/application.properties`
+
+If the file does not exist, it will be created on first start.
+
+> Note: When running the fat JAR, the external config file is the source of truth.
+
 1. Copy the template configuration file:
    ```bash
    cp src/main/resources/application.properties.template src/main/resources/application.properties

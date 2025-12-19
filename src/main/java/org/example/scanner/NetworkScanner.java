@@ -23,6 +23,16 @@ public class NetworkScanner {
     private final boolean healthCheckEnabled;
     private final String[] checkPaths;
 
+    public interface ProgressListener {
+        void onStarted(int total);
+
+        void onItemStarted(String ipAddress);
+
+        void onItemCompleted(String ipAddress);
+
+        void onFinished();
+    }
+
     public NetworkScanner(int connectionTimeoutMs, int threadPoolSize, 
                          HealthChecker healthChecker, boolean healthCheckEnabled, String[] checkPaths) {
         this.connectionTimeoutMs = connectionTimeoutMs;
@@ -36,24 +46,49 @@ public class NetworkScanner {
      * Scans a range of IP addresses with multi-level health checking
      */
     public List<Instance> scanRange(String startIp, String endIp, int port) {
-        List<Instance> instances = new ArrayList<>();
+        return scanRange(startIp, endIp, port, null);
+    }
+
+    /**
+     * Scans a range of IP addresses and reports progress.
+     * Returns results for ALL scanned addresses, including unreachable.
+     */
+    public List<Instance> scanRange(String startIp, String endIp, int port, ProgressListener progressListener) {
         List<String> ipAddresses = generateIpRange(startIp, endIp);
-        
+        java.util.Map<String, Instance> resultsByIp = new java.util.concurrent.ConcurrentHashMap<>();
+
         logger.info("Scanning {} IP addresses on port {} with health checks", ipAddresses.size(), port);
-        
-        List<Future<Instance>> futures = new ArrayList<>();
-        for (String ip : ipAddresses) {
-            futures.add(executorService.submit(() -> checkInstanceMultiLevel(ip, port)));
+        if (progressListener != null) {
+            progressListener.onStarted(ipAddresses.size());
         }
 
-        for (Future<Instance> future : futures) {
-            try {
-                Instance instance = future.get();
-                if (instance.isReachable()) {
-                    instances.add(instance);
-                    logger.debug("Found instance: {} - Status: {}", 
-                        instance.getAddress(), instance.getStatus().getDisplayName());
+        CompletionService<Instance> completionService = new ExecutorCompletionService<>(executorService);
+        for (String ip : ipAddresses) {
+            completionService.submit(() -> {
+                if (progressListener != null) {
+                    progressListener.onItemStarted(ip);
                 }
+                try {
+                    return checkInstanceMultiLevel(ip, port);
+                } catch (Exception e) {
+                    // Never drop a scanned address due to unexpected errors.
+                    Instance failed = new Instance(ip, port);
+                    failed.setStatus(InstanceStatus.API_ERROR);
+                    failed.setErrorMessage("Scan error: " + e.getMessage());
+                    return failed;
+                } finally {
+                    if (progressListener != null) {
+                        progressListener.onItemCompleted(ip);
+                    }
+                }
+            });
+        }
+
+        for (int i = 0; i < ipAddresses.size(); i++) {
+            try {
+                Future<Instance> future = completionService.take();
+                Instance instance = future.get();
+                resultsByIp.put(instance.getIpAddress(), instance);
             } catch (InterruptedException e) {
                 logger.debug("Scan interrupted (scanner restarting)");
                 Thread.currentThread().interrupt();
@@ -63,8 +98,26 @@ public class NetworkScanner {
             }
         }
 
-        logger.info("Scan complete. Found {} reachable instances", instances.size());
-        return instances;
+        if (progressListener != null) {
+            progressListener.onFinished();
+        }
+
+        // Return results in the same order as the input IP range for better UX.
+        List<Instance> ordered = new ArrayList<>(ipAddresses.size());
+        for (String ip : ipAddresses) {
+            Instance instance = resultsByIp.get(ip);
+            if (instance == null) {
+                Instance missing = new Instance(ip, port);
+                missing.setStatus(InstanceStatus.UNKNOWN);
+                missing.setErrorMessage("No scan result");
+                ordered.add(missing);
+            } else {
+                ordered.add(instance);
+            }
+        }
+
+        logger.info("Scan complete. Scanned {} addresses", ordered.size());
+        return ordered;
     }
 
     /**
@@ -80,6 +133,14 @@ public class NetworkScanner {
         // Level 1: TCP Socket Check
         if (!checkTcpPort(instance)) {
             instance.setStatus(InstanceStatus.UNREACHABLE);
+            if (checkPaths != null && checkPaths.length > 0) {
+                for (String path : checkPaths) {
+                    org.example.model.PathCheckResult pathResult = new org.example.model.PathCheckResult(path);
+                    pathResult.setStatus(InstanceStatus.UNREACHABLE);
+                    pathResult.setErrorMessage("TCP port unreachable");
+                    instance.addPathResult(pathResult);
+                }
+            }
             return instance;
         }
         
@@ -118,19 +179,45 @@ public class NetworkScanner {
      */
     private List<String> generateIpRange(String startIp, String endIp) {
         List<String> ipAddresses = new ArrayList<>();
-        
-        String[] startParts = startIp.split("\\.");
-        String[] endParts = endIp.split("\\.");
-        
-        int start = Integer.parseInt(startParts[3]);
-        int end = Integer.parseInt(endParts[3]);
-        String baseIp = startParts[0] + "." + startParts[1] + "." + startParts[2] + ".";
-        
-        for (int i = start; i <= end; i++) {
-            ipAddresses.add(baseIp + i);
+        long start = ipv4ToLong(startIp);
+        long end = ipv4ToLong(endIp);
+        if (end < start) {
+            long tmp = start;
+            start = end;
+            end = tmp;
         }
-        
+
+        long count = (end - start) + 1;
+        if (count > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("IP range too large: " + count);
+        }
+        for (long v = start; v <= end; v++) {
+            ipAddresses.add(longToIpv4(v));
+        }
         return ipAddresses;
+    }
+
+    private long ipv4ToLong(String ip) {
+        String[] parts = ip.split("\\.");
+        if (parts.length != 4) {
+            throw new IllegalArgumentException("Invalid IPv4 address: " + ip);
+        }
+        long result = 0;
+        for (int i = 0; i < 4; i++) {
+            int part = Integer.parseInt(parts[i]);
+            if (part < 0 || part > 255) {
+                throw new IllegalArgumentException("Invalid IPv4 address: " + ip);
+            }
+            result = (result << 8) | (part & 0xFF);
+        }
+        return result;
+    }
+
+    private String longToIpv4(long value) {
+        return ((value >> 24) & 0xFF) + "." +
+                ((value >> 16) & 0xFF) + "." +
+                ((value >> 8) & 0xFF) + "." +
+                (value & 0xFF);
     }
 
     public void shutdown() {

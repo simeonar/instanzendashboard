@@ -114,6 +114,24 @@ public class WebDashboard {
             stats.put("lastUpdate", dashboardManager.getLastUpdateTime());
             stats.put("scanInterval", configManager.getScanIntervalSeconds());
             stats.put("currentTime", System.currentTimeMillis());
+
+            // Scan progress
+            if (applicationManager != null) {
+                stats.put("scanning", applicationManager.isScanning());
+                org.example.scanner.ScanProgressSnapshot progress = applicationManager.getScanProgressSnapshot();
+                if (progress != null) {
+                    Map<String, Object> progressMap = new HashMap<>();
+                    progressMap.put("inProgress", progress.isInProgress());
+                    progressMap.put("startedAtEpochMs", progress.getStartedAtEpochMs());
+                    progressMap.put("total", progress.getTotal());
+                    progressMap.put("completed", progress.getCompleted());
+                    progressMap.put("currentAddress", progress.getCurrentAddress());
+                    progressMap.put("elapsedMs", progress.getElapsedMs(System.currentTimeMillis()));
+                    stats.put("scanProgress", progressMap);
+                }
+            } else {
+                stats.put("scanning", false);
+            }
             
             // Add paths with Open button visibility
             String autoOpenPaths = configManager.getProperty("check.paths.autoopen", "");
@@ -633,6 +651,53 @@ public class WebDashboard {
                 "\n" +
                 "    <script>\n" +
                 "        let pathsWithOpenButton = [];\n" +
+                "        let scanPollInterval = null;\n" +
+                "\n" +
+                "        const STATUS_LABELS = {\n" +
+                "            'UNKNOWN': 'Unknown',\n" +
+                "            'UNREACHABLE': 'Unreachable',\n" +
+                "            'PORT_OPEN': 'Port Open',\n" +
+                "            'HTTP_OK': 'HTTP OK',\n" +
+                "            'API_HEALTHY': 'API Healthy',\n" +
+                "            'API_DEGRADED': 'Degraded',\n" +
+                "            'API_ERROR': 'Error',\n" +
+                "            'TIMEOUT': 'Timeout'\n" +
+                "        };\n" +
+                "\n" +
+                "        function formatStatusLabel(status) {\n" +
+                "            return STATUS_LABELS[status] || status;\n" +
+                "        }\n" +
+                "\n" +
+                "        function updateScanUiFromStats(stats) {\n" +
+                "            const btn = document.getElementById('scanBtn');\n" +
+                "            const statusEl = document.getElementById('scanStatus');\n" +
+                "            const progress = stats && stats.scanProgress ? stats.scanProgress : null;\n" +
+                "\n" +
+                "            if (progress && progress.inProgress) {\n" +
+                "                const total = progress.total || 0;\n" +
+                "                const completed = progress.completed || 0;\n" +
+                "                const percent = total > 0 ? Math.floor((completed * 100) / total) : 0;\n" +
+                "                const current = progress.currentAddress ? (' | ' + progress.currentAddress) : '';\n" +
+                "                statusEl.textContent = `Scanning: ${completed}/${total} (${percent}%)${current}`;\n" +
+                "                statusEl.style.color = '#f59e0b';\n" +
+                "                btn.disabled = true;\n" +
+                "                btn.style.opacity = '0.5';\n" +
+                "                return;\n" +
+                "            }\n" +
+                "\n" +
+                "            // Not in progress\n" +
+                "            if (scanPollInterval) {\n" +
+                "                clearInterval(scanPollInterval);\n" +
+                "                scanPollInterval = null;\n" +
+                "            }\n" +
+                "            btn.disabled = false;\n" +
+                "            btn.style.opacity = '1';\n" +
+                "            if (statusEl.textContent && statusEl.textContent.startsWith('Scanning:')) {\n" +
+                "                statusEl.textContent = 'Scan finished';\n" +
+                "                statusEl.style.color = '#10b981';\n" +
+                "                setTimeout(() => { statusEl.textContent = ''; }, 4000);\n" +
+                "            }\n" +
+                "        }\n" +
                 "        \n" +
                 "        function fetchStats() {\n" +
                 "            fetch('/api/stats')\n" +
@@ -642,23 +707,18 @@ public class WebDashboard {
                 "                    document.getElementById('httpOkInstances').textContent = stats.httpOk;\n" +
                 "                    document.getElementById('degradedInstances').textContent = stats.degraded;\n" +
                 "                    document.getElementById('errorInstances').textContent = stats.errors;\n" +
+                "                    updateScanUiFromStats(stats);\n" +
                 "                    \n" +
                 "                    // Store paths with Open button enabled\n" +
                 "                    if (stats.pathsWithOpenButton) {\n" +
                 "                        pathsWithOpenButton = stats.pathsWithOpenButton.split(',').map(s => s.trim()).filter(s => s);\n" +
                 "                    }\n" +
                 "                    \n" +
-                "                    const date = new Date(stats.lastUpdate);\n" +
-                "                    document.getElementById('lastUpdate').textContent = 'Last Update: ' + date.toLocaleString();\n" +
-                "                    \n" +
-                "                    // Calculate next scan time\n" +
-                "                    if (stats.lastUpdate && stats.scanInterval) {\n" +
-                "                        const lastUpdate = stats.lastUpdate;\n" +
-                "                        const scanInterval = stats.scanInterval * 1000;\n" +
-                "                        const nextScanTime = lastUpdate + scanInterval;\n" +
-                "                        const now = stats.currentTime || Date.now();\n" +
-                "                        const secondsUntilNext = Math.max(0, Math.floor((nextScanTime - now) / 1000));\n" +
-                "                        document.getElementById('nextScan').textContent = `Next scan in: ${secondsUntilNext}s (every ${stats.scanInterval}s)`;\n" +
+                "                    if (stats.lastUpdate && stats.lastUpdate > 0) {\n" +
+                "                        const date = new Date(stats.lastUpdate);\n" +
+                "                        document.getElementById('lastUpdate').textContent = 'Last Update: ' + date.toLocaleString();\n" +
+                "                    } else {\n" +
+                "                        document.getElementById('lastUpdate').textContent = 'No scans yet';\n" +
                 "                    }\n" +
                 "                })\n" +
                 "                .catch(err => console.error('Error fetching stats:', err));\n" +
@@ -697,7 +757,7 @@ public class WebDashboard {
                 "                                const showOpenButton = pathsWithOpenButton.includes(path);\n" +
                 "                                pathsHtml += '<tr>';\n" +
                 "                                pathsHtml += '<td><a href=\"' + url + '\" target=\"_blank\" class=\"path-link\">' + path + '</a></td>';\n" +
-                "                                pathsHtml += '<td><span class=\"status-badge status-' + result.status + '\">' + result.status + '</span></td>';\n" +
+                "                                pathsHtml += '<td><span class=\"status-badge status-' + result.status + '\">' + formatStatusLabel(result.status) + '</span></td>';\n" +
                 "                                pathsHtml += '<td>' + (result.httpStatusCode || '-') + '</td>';\n" +
                 "                                pathsHtml += '<td>' + (result.responseTimeMs >= 0 ? result.responseTimeMs + 'ms' : 'N/A') + '</td>';\n" +
                 "                                pathsHtml += '<td>';\n" +
@@ -716,7 +776,7 @@ public class WebDashboard {
                 "                            <div class=\"instance-card\">\n" +
                 "                                <div class=\"instance-header\">\n" +
                 "                                    <div class=\"instance-title\">${instance.ipAddress}:${instance.port}</div>\n" +
-                "                                    <span class=\"status-badge status-${instance.status}\">${instance.status}</span>\n" +
+                "                                    <span class=\"status-badge status-${instance.status}\">${formatStatusLabel(instance.status)}</span>\n" +
                 "                                </div>\n" +
                 "                                ${metadataHtml}\n" +
                 "                                ${pathsHtml}\n" +
@@ -748,21 +808,13 @@ public class WebDashboard {
                 "                .then(response => response.json())\n" +
                 "                .then(result => {\n" +
                 "                    if (result.success) {\n" +
-                "                        statusEl.textContent = 'Scan started successfully';\n" +
-                "                        statusEl.style.color = '#10b981';\n" +
-                "                        \n" +
-                "                        // Poll for updates\n" +
-                "                        const pollInterval = setInterval(() => {\n" +
+                "                        statusEl.textContent = 'Scanning...';\n" +
+                "                        statusEl.style.color = '#f59e0b';\n" +
+                "                        // Poll while scan is in progress\n" +
+                "                        if (scanPollInterval) clearInterval(scanPollInterval);\n" +
+                "                        scanPollInterval = setInterval(() => {\n" +
                 "                            refresh();\n" +
-                "                        }, 2000);\n" +
-                "                        \n" +
-                "                        // Stop polling after 30 seconds\n" +
-                "                        setTimeout(() => {\n" +
-                "                            clearInterval(pollInterval);\n" +
-                "                            btn.disabled = false;\n" +
-                "                            btn.style.opacity = '1';\n" +
-                "                            statusEl.textContent = '';\n" +
-                "                        }, 30000);\n" +
+                "                        }, 1000);\n" +
                 "                    } else {\n" +
                 "                        statusEl.textContent = 'Error: ' + result.message;\n" +
                 "                        statusEl.style.color = '#ef4444';\n" +

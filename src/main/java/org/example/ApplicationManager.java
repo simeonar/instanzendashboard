@@ -26,6 +26,8 @@ public class ApplicationManager {
     private HealthChecker healthChecker;
     private NetworkScanner networkScanner;
     private boolean isScanning = false;
+
+    private final org.example.scanner.ScanProgressTracker scanProgressTracker = new org.example.scanner.ScanProgressTracker();
     
     public ApplicationManager(ConfigManager configManager, DashboardManager dashboardManager, ConsoleDashboard consoleDashboard) {
         this.configManager = configManager;
@@ -86,7 +88,28 @@ public class ApplicationManager {
             java.util.List<org.example.model.Instance> instances = networkScanner.scanRange(
                     configManager.getIpRangeStart(),
                     configManager.getIpRangeEnd(),
-                    configManager.getNetworkPort()
+                    configManager.getNetworkPort(),
+                    new NetworkScanner.ProgressListener() {
+                        @Override
+                        public void onStarted(int total) {
+                            scanProgressTracker.start(total);
+                        }
+
+                        @Override
+                        public void onItemStarted(String ipAddress) {
+                            scanProgressTracker.updateCurrent(ipAddress + ":" + configManager.getNetworkPort());
+                        }
+
+                        @Override
+                        public void onItemCompleted(String ipAddress) {
+                            scanProgressTracker.incrementCompleted();
+                        }
+
+                        @Override
+                        public void onFinished() {
+                            scanProgressTracker.finish();
+                        }
+                    }
             );
             
             // Filter unreachable if configured
@@ -102,8 +125,13 @@ public class ApplicationManager {
             logger.error("Error during manual scan", e);
             throw new RuntimeException("Scan failed: " + e.getMessage());
         } finally {
+            scanProgressTracker.finish();
             isScanning = false;
         }
+    }
+
+    public org.example.scanner.ScanProgressSnapshot getScanProgressSnapshot() {
+        return scanProgressTracker.snapshot();
     }
     
     /**

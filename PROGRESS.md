@@ -1,5 +1,33 @@
 # InstanzenDashboard - Development Progress
 
+## 2025-12-19: Scan UX + Persistence Improvements
+
+### Implemented
+
+#### 1. ✅ Show all scanned addresses (including unreachable)
+- **Problem**: Scanner returned only reachable instances, so the dashboard missed most addresses.
+- **Fix**: `NetworkScanner.scanRange()` now returns results for **every IP** in the configured range.
+- **UX**: Results are returned in deterministic IP order for easier reading.
+
+#### 2. ✅ Persistent settings across sessions/restarts
+- **Problem**: `reloadProperties()` loaded from classpath resources, so saved settings did not reliably persist.
+- **Fix**: Configuration is now loaded/saved from an external file in the user home directory:
+  - `~/.instanzen-dashboard/application.properties`
+- If the external file does not exist, it is created on first run.
+
+#### 3. ✅ Scan progress visible in Web Dashboard
+- **Added**: Thread-safe scan progress tracker (`ScanProgressTracker`) and immutable snapshot (`ScanProgressSnapshot`).
+- **API**: `/api/stats` now includes `scanProgress` (`total/completed/currentAddress/elapsedMs`).
+- **Frontend**: Dashboard shows percentage + current address during scan and stops polling when scan completes.
+
+#### 4. ✅ Better status readability
+- Dashboard now displays friendly status labels instead of raw enum constants.
+
+### Files
+- Backend: `src/main/java/org/example/config/ConfigManager.java`, `src/main/java/org/example/scanner/NetworkScanner.java`, `src/main/java/org/example/scanner/HealthChecker.java`, `src/main/java/org/example/ApplicationManager.java`
+- Web UI: `src/main/java/org/example/dashboard/WebDashboard.java`
+- New: `src/main/java/org/example/scanner/ScanProgressTracker.java`, `src/main/java/org/example/scanner/ScanProgressSnapshot.java`
+
 ## 2025-12-16: Fixes and Improvements (Commit: b936509)
 
 ### Fixed Issues
